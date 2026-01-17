@@ -27,24 +27,23 @@ app.use(cors({
 }));
 
 
-app.use(
-  session({
-    store: new pgSession({
-      pool,
-      tableName: "session",
-      createTableIfMissing: true,
-    }),
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: "none",
-      secure: false, // na Render ustawimy true + proxy
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 dni
-    },
-  })
-);
+app.use(session({
+  store: new pgSession({
+    pool,
+    tableName: "session",
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  proxy: true, // <- ważne na Render
+  cookie: {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true, // <- MUSI być true dla SameSite=None
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+  },
+}));
 
 app.set("trust proxy", 1);
 app.get("/health", (_req, res) => res.json({ ok: true }));
