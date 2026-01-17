@@ -11,21 +11,27 @@ const cartRouter = require("./routes/cart");
 const checkoutRouter = require("./routes/checkout");
 const ordersRouter = require("./routes/orders");
 const paymentsRouter = require("./routes/payments");
-const allowed = [process.env.CORS_ORIGIN, "http://localhost:5173"].filter(Boolean);
+const allowed = [
+  process.env.CORS_ORIGIN,
+  "http://localhost:5173",
+  "https://hiking-store-uk.netlify.app",
+  "https://www.hiking-store-uk.netlify.app",
+].filter(Boolean);
+
 
 const app = express();
 
 app.use(express.json());
 
+app.set("trust proxy", 1); // ✅ MUSI być przed session
 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // np. Postman
+    if (!origin) return cb(null, true);
     return allowed.includes(origin) ? cb(null, true) : cb(new Error("CORS blocked"));
   },
   credentials: true,
 }));
-
 
 app.use(session({
   store: new pgSession({
@@ -36,16 +42,16 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  proxy: true, // <- ważne na Render
+  proxy: true, // ✅ ważne na Render
   cookie: {
     httpOnly: true,
     sameSite: "none",
-    secure: true, // <- MUSI być true dla SameSite=None
+    secure: true, // ✅ MUST (SameSite=None)
     maxAge: 1000 * 60 * 60 * 24 * 7,
   },
 }));
 
-app.set("trust proxy", 1);
+
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/auth", authRouter);
 app.use("/cart", cartRouter);
