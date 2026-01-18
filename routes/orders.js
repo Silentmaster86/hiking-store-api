@@ -74,4 +74,35 @@ router.get("/:id", requireAuth, async (req, res) => {
   res.json({ order: order.rows[0], items: items.rows });
 });
 
+// PATCH /orders/:id/status  body: { status }
+router.patch("/:id/status", async (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body || {};
+
+  const allowed = ["pending", "paid", "shipped", "delivered", "cancelled"];
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+  if (!allowed.includes(status)) return res.status(400).json({ error: "Invalid status" });
+
+  try {
+    // tylko owner (zalogowany user) może zmieniać status swojego ordera
+    if (!req.session.userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const result = await pool.query(
+      `UPDATE orders
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2 AND user_id = $3
+       RETURNING id, status, total_cents, created_at, updated_at`,
+      [status, id, req.session.userId]
+    );
+
+    if (!result.rows.length) return res.status(404).json({ error: "Order not found" });
+
+    return res.json({ order: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+
 module.exports = router;
