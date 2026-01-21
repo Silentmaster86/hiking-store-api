@@ -32,6 +32,7 @@ async function setup() {
         description TEXT NOT NULL,
         price_cents INT NOT NULL CHECK (price_cents >= 0),
         image_url TEXT,
+        category_slug TEXT NOT NULL DEFAULT 'accessories',
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
@@ -75,11 +76,31 @@ async function setup() {
 
     // seed products
     await client.query(`
-      INSERT INTO products (name, description, price_cents, image_url) VALUES
-      ('Trail Backpack 35L', 'Lightweight 35L backpack with breathable back panel.', 8999, ''),
-      ('Waterproof Hiking Jacket', 'Packable waterproof jacket, windproof and breathable.', 12999, ''),
-      ('Trekking Poles (Pair)', 'Aluminum trekking poles with quick-lock system.', 4999, ''),
-      ('Insulated Bottle 750ml', 'Keeps drinks cold 24h / hot 12h.', 2499, '');
+      INSERT INTO products (name, description, price_cents, image_url, category_slug) VALUES
+      -- backpacks (4)
+      ('Trail Backpack 35L', 'Lightweight 35L backpack with breathable back panel.', 8999, '', 'backpacks'),
+      ('Daypack 20L', 'Compact daypack with hydration sleeve.', 4999, '', 'backpacks'),
+      ('Waterproof Pack Cover', 'Rain cover fits 20–45L packs.', 1299, '', 'backpacks'),
+      ('Backpack Hip Belt Pouch', 'Quick-access pouch for snacks and phone.', 1599, '', 'backpacks'),
+          
+      -- jackets (4)
+      ('Waterproof Hiking Jacket', 'Packable waterproof jacket, windproof and breathable.', 12999, '', 'jackets'),
+      ('Fleece Midlayer', 'Warm fleece for chilly hikes.', 3999, '', 'jackets'),
+      ('Down Gilet', 'Light insulated vest for layering.', 6999, '', 'jackets'),
+      ('Rain Poncho', 'Ultralight poncho for sudden rain.', 2499, '', 'jackets'),
+          
+      -- boots (4)
+      ('Hiking Boots Mid', 'Supportive mid boots with grippy outsole.', 8999, '', 'boots'),
+      ('Trail Shoes', 'Light trail shoes for fast hikes.', 7499, '', 'boots'),
+      ('Merino Hiking Socks', 'Cushioned socks for long walks.', 1299, '', 'boots'),
+      ('Boot Waterproofing Spray', 'Protects leather and textile footwear.', 999, '', 'boots'),
+          
+      -- accessories (4)
+      ('Trekking Poles (Pair)', 'Aluminum trekking poles with quick-lock system.', 4999, '', 'accessories'),
+      ('Insulated Bottle 750ml', 'Keeps drinks cold 24h / hot 12h.', 2499, '', 'accessories'),
+      ('Headlamp 300lm', 'Bright headlamp with multiple modes.', 1999, '', 'accessories'),
+      ('First Aid Mini Kit', 'Compact kit for the trail.', 1499, '', 'accessories');
+
     `);
 
     await client.query("COMMIT");
