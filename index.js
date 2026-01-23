@@ -1,9 +1,11 @@
 require("dotenv").config();
+require("./auth/passport");
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const pool = require("./db");
+const passport = require("passport")
 
 const productsRouter = require("./routes/products");
 const authRouter = require("./routes/auth");
@@ -23,7 +25,7 @@ const app = express();
 
 app.use(express.json());
 
-app.set("trust proxy", 1); // ✅ MUSI być przed session
+app.set("trust proxy", 1);
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -42,23 +44,27 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  proxy: true, // ✅ ważne na Render
+  proxy: true, // ✅ important on Render
   cookie: {
     httpOnly: true,
     sameSite: "none",
     secure: true, // ✅ MUST (SameSite=None)
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  },
+    maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+  }
 }));
 
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
-app.use("/auth", authRouter);
 app.use("/cart", cartRouter);
 app.use("/checkout", checkoutRouter);
 app.use("/products", productsRouter);
 app.use("/orders", ordersRouter);
 app.use("/payments", paymentsRouter);
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.use("/auth", authRouter);
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => console.log(`✅ API running on http://localhost:${port}`));

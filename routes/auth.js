@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const pool = require("../db");
+const passport = require("passport");
 
 async function mergeGuestCartIntoUserCart(req) {
   const userId = req.session.userId;
@@ -86,7 +87,6 @@ async function createGuestCartFromUserCart(req, userId) {
 
 const router = express.Router();
 
-// helper: bezpieczny user do zwrotu
 function toPublicUser(row) {
   return {
     id: row.id,
@@ -218,5 +218,36 @@ router.get("/me", async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 });
+
+// --- OAUTH: FACEBOOK ---
+router.get("/facebook", passport.authenticate("facebook", { scope: ["email"] }));
+
+router.get(
+  "/facebook/callback",
+  passport.authenticate("facebook", {
+    failureRedirect: `${process.env.CORS_ORIGIN}/login?error=facebook`,
+  }),
+  async (req, res) => {
+    req.session.userId = req.user.id;
+    await mergeGuestCartIntoUserCart(req);
+    return res.redirect(`${process.env.CORS_ORIGIN}/`);
+  }
+);
+
+// --- OAUTH: GOOGLE ---
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: `${process.env.CORS_ORIGIN}/login?error=google`,
+  }),
+  async (req, res) => {
+    req.session.userId = req.user.id;
+    await mergeGuestCartIntoUserCart(req);
+    return res.redirect(`${process.env.CORS_ORIGIN}/`);
+  }
+);
+
 
 module.exports = router;
