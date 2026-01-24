@@ -4,7 +4,7 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const pool = require("../db");
 
 async function findOrCreateOAuthUser({ provider, providerId, email, firstName, lastName }) {
-  // 1) Szukaj po provider+id
+  
   const byOauth = await pool.query(
     `SELECT id, email, first_name, last_name, created_at
      FROM users
@@ -14,7 +14,7 @@ async function findOrCreateOAuthUser({ provider, providerId, email, firstName, l
   );
   if (byOauth.rows.length) return byOauth.rows[0];
 
-  // 2) Jeśli mamy email, spróbuj podłączyć do istniejącego konta emailowego
+  
   if (email) {
     const byEmail = await pool.query(
       `SELECT id, email, first_name, last_name, created_at
@@ -36,8 +36,6 @@ async function findOrCreateOAuthUser({ provider, providerId, email, firstName, l
     }
   }
 
-  // 3) Utwórz nowego usera "OAuth-only"
-  // password_hash musi istnieć -> dajemy placeholder (nie używany w login email)
   const created = await pool.query(
     `INSERT INTO users (email, password_hash, first_name, last_name, oauth_provider, oauth_id)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -55,7 +53,6 @@ async function findOrCreateOAuthUser({ provider, providerId, email, firstName, l
   return created.rows[0];
 }
 
-// Passport serializuje tylko userId (czytelne i bezpieczne)
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
   try {
