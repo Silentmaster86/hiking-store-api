@@ -68,12 +68,20 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // FACEBOOK
+const FB_VER = process.env.FB_GRAPH_VER || "v23.0";
+
 passport.use(
   new FacebookStrategy(
     {
       clientID: process.env.FB_APP_ID,
       clientSecret: process.env.FB_APP_SECRET,
       callbackURL: process.env.FB_CALLBACK_URL,
+
+      // ✅ wymuszamy nową wersję Graph API (zamiast starego v3.2)
+      authorizationURL: `https://www.facebook.com/${FB_VER}/dialog/oauth`,
+      tokenURL: `https://graph.facebook.com/${FB_VER}/oauth/access_token`,
+      profileURL: `https://graph.facebook.com/${FB_VER}/me`,
+
       profileFields: ["id", "displayName", "emails", "name"],
     },
     async (_accessToken, _refreshToken, profile, done) => {
@@ -97,6 +105,7 @@ passport.use(
     }
   )
 );
+
 
 // GOOGLE
 passport.use(

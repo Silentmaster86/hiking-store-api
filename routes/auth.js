@@ -220,7 +220,7 @@ router.get("/me", async (req, res) => {
 });
 
 // --- OAUTH: FACEBOOK ---
-router.get("/facebook", passport.authenticate("facebook", { scope: ["email"] }));
+router.get("/facebook", passport.authenticate("facebook", { scope: ["public_profile", "email"] }));
 
 router.get(
   "/facebook/callback",
