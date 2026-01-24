@@ -68,7 +68,7 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // FACEBOOK
-const FB_VER = process.env.FB_GRAPH_VER || "v23.0";
+const FB_VER = process.env.FB_GRAPH_VER || "v24.0";
 
 passport.use(
   new FacebookStrategy(
