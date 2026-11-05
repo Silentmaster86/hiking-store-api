@@ -58,7 +58,7 @@ test("HTTP store flows on migrated PostgreSQL", {
   }
   await t.test("migration can be applied twice without losing products", async () => {
     await migrate(pool);
-    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "2");
+    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "3");
     assert.equal((await pool.query("SELECT count(*) FROM products")).rows[0].count, "1");
   });
   await t.test("account cart survives repeated logout/login without duplication", async () => {
@@ -201,6 +201,17 @@ test("HTTP store flows on migrated PostgreSQL", {
       assert.equal(old.total_cents, 1234);
       assert.equal(old.status, "created");
       assert.equal(old.checkout_key, null);
+      const source = await require("node:fs/promises").readFile(require("node:path").join(__dirname, "../db/migrations/003_catalogue_copy.sql"), "utf8");
+      await legacy.query("INSERT INTO products(name,description,price_cents) VALUES('Down Gilet','Old demo',6999),('Custom product','Owner copy',123)");
+      await legacy.query("INSERT INTO order_items(order_id,product_id,quantity,price_cents) VALUES(1,1,1,6999)");
+      await legacy.query(source);
+      assert.equal((await legacy.query("SELECT name FROM products WHERE id = 1")).rows[0].name, "Lightweight Hiking Jacket");
+      assert.equal((await legacy.query("SELECT price_cents FROM products WHERE id = 1")).rows[0].price_cents, 6999);
+      assert.equal((await legacy.query("SELECT product_name FROM order_items WHERE order_id = 1")).rows[0].product_name, "Down Gilet");
+      const { seed } = require("../db/seed");
+      await seed(legacy); await seed(legacy);
+      assert.equal((await legacy.query("SELECT count(*) FROM products")).rows[0].count, "17");
+      assert.equal((await legacy.query("SELECT description FROM products WHERE name = 'Custom product'")).rows[0].description, "Owner copy");
     } finally { await legacy.end(); await admin.query(`DROP SCHEMA ${legacySchema} CASCADE`); }
   });
 });
