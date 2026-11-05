@@ -22,6 +22,7 @@ const allowed = [
   "https://www.hiking-store-uk.netlify.app",
 ].filter(Boolean);
 
+const secureCookies = !["development", "test"].includes(process.env.NODE_ENV);
 const app = express();
 app.set("trust proxy", 1);
 
@@ -50,8 +51,8 @@ app.use(
     proxy: true,
     cookie: {
       httpOnly: true,
-      sameSite: "none",
-      secure: true,
+      sameSite: process.env.SESSION_SAME_SITE || (secureCookies ? "none" : "lax"),
+      secure: secureCookies,
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     },
   })

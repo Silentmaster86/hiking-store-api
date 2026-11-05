@@ -2,8 +2,20 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const pool = require("../db");
 const passport = require("passport");
+const mergeGuestCart = require("../services/mergeGuestCart");
+const { guestState, regenerateSession, saveSession, logout } = require("../auth/session");
 
 const router = express.Router();
+const appOrigin = process.env.APP_ORIGIN || process.env.CORS_ORIGIN || "http://localhost:5173";
+function requireProvider(provider) {
+  return (_req, res, next) => {
+    const available = provider === "google"
+      ? process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      : process.env.FB_APP_ID && process.env.FB_APP_SECRET;
+    if (!available) return res.status(503).json({ error: "This sign-in provider is not configured." });
+    next();
+  };
+}
 
 function toPublicUser(row) {
   return {
@@ -15,72 +27,12 @@ function toPublicUser(row) {
   };
 }
 
-async function mergeGuestCartIntoUserCart(req) {
-  const userId = req.session.userId;
-  const guestCartId = req.session.cartId;
-  if (!userId || !guestCartId) return;
-
-  const userCart = await pool.query(`SELECT id FROM carts WHERE user_id = $1`, [userId]);
-  let userCartId;
-
-  if (userCart.rows.length) {
-    userCartId = userCart.rows[0].id;
-  } else {
-    const created = await pool.query(
-      `INSERT INTO carts (user_id) VALUES ($1) RETURNING id`,
-      [userId]
-    );
-    userCartId = created.rows[0].id;
-  }
-
-  const guestItems = await pool.query(
-    `SELECT product_id, quantity FROM cart_items WHERE cart_id = $1`,
-    [guestCartId]
-  );
-
-  for (const item of guestItems.rows) {
-    await pool.query(
-      `INSERT INTO cart_items (cart_id, product_id, quantity)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (cart_id, product_id)
-       DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity,
-                    updated_at = NOW()`,
-      [userCartId, item.product_id, item.quantity]
-    );
-  }
-
-  await pool.query(`DELETE FROM cart_items WHERE cart_id = $1`, [guestCartId]);
-  await pool.query(`DELETE FROM carts WHERE id = $1`, [guestCartId]);
-
-  delete req.session.cartId;
-}
-
-async function createGuestCartFromUserCart(req, userId) {
-  const userCart = await pool.query(`SELECT id FROM carts WHERE user_id = $1`, [userId]);
-  if (!userCart.rows.length) return;
-
-  const userCartId = userCart.rows[0].id;
-
-  const guestCart = await pool.query(`INSERT INTO carts (user_id) VALUES (NULL) RETURNING id`);
-  const guestCartId = guestCart.rows[0].id;
-
-  const items = await pool.query(
-    `SELECT product_id, quantity FROM cart_items WHERE cart_id = $1`,
-    [userCartId]
-  );
-
-  for (const it of items.rows) {
-    await pool.query(
-      `INSERT INTO cart_items (cart_id, product_id, quantity)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (cart_id, product_id)
-       DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity,
-                    updated_at = NOW()`,
-      [guestCartId, it.product_id, it.quantity]
-    );
-  }
-
-  req.session.cartId = guestCartId;
+async function finishLogin(req, userId) {
+  const cartId = req.session.cartId;
+  const state = guestState(req.session);
+  await mergeGuestCart(pool, userId, cartId);
+  await regenerateSession(req, { ...state, userId });
+  await saveSession(req);
 }
 
 // ----- EMAIL/PASSWORD
@@ -101,11 +53,8 @@ router.post("/register", async (req, res) => {
       [email, passwordHash, firstName, lastName]
     );
 
-    req.session.userId = created.rows[0].id;
-    await mergeGuestCartIntoUserCart(req);
-
-    // ✅ dopnij zapis sesji
-    return req.session.save(() => res.status(201).json({ user: toPublicUser(created.rows[0]) }));
+    await finishLogin(req, created.rows[0].id);
+    return res.status(201).json({ user: toPublicUser(created.rows[0]) });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
@@ -129,10 +78,8 @@ router.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials." });
 
-    req.session.userId = user.id;
-    await mergeGuestCartIntoUserCart(req);
-
-    return req.session.save(() => res.json({ user: toPublicUser(user) }));
+    await finishLogin(req, user.id);
+    return res.json({ user: toPublicUser(user) });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
@@ -140,14 +87,9 @@ router.post("/login", async (req, res) => {
 });
 
 router.post("/logout", async (req, res) => {
-  const userId = req.session.userId;
-  if (!userId) return res.json({ ok: true });
-
   try {
-    delete req.session.userId;
-    await createGuestCartFromUserCart(req, userId);
-
-    return req.session.save(() => res.json({ ok: true }));
+    await logout(req);
+    return res.json({ ok: true });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Could not log out." });
@@ -178,41 +120,49 @@ router.get("/me", async (req, res) => {
   }
 });
 
-// ----- OAUTH FACEBOOK (bez scope email)
-router.get("/facebook", passport.authenticate("facebook"));
+function captureGuestState(req, _res, next) {
+  req.guestState = { ...guestState(req.session), cartId: req.session.cartId };
+  next();
+}
+
+async function finishOAuth(req, res, next) {
+  try {
+    Object.assign(req.session, req.guestState);
+    const userId = req.user.id;
+    await mergeGuestCart(pool, userId, req.session.cartId);
+    delete req.session.cartId;
+    req.session.userId = userId;
+    await saveSession(req);
+    res.redirect(`${appOrigin}/`);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ----- OAUTH FACEBOOK
+router.get("/facebook", requireProvider("facebook"), passport.authenticate("facebook"));
 
 router.get(
   "/facebook/callback",
+  requireProvider("facebook"),
+  captureGuestState,
   passport.authenticate("facebook", {
-    failureRedirect: `${process.env.CORS_ORIGIN}/login?error=facebook`,
+    failureRedirect: `${appOrigin}/login?error=facebook`,
   }),
-  async (req, res) => {
-    req.session.userId = req.user.id;
-    await mergeGuestCartIntoUserCart(req);
-
-    // ✅ MUST: zapisz sesję zanim redirect
-    req.session.save(() => {
-      res.redirect(`${process.env.CORS_ORIGIN}/`);
-    });
-  }
+  finishOAuth
 );
 
 // ----- OAUTH GOOGLE
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+router.get("/google", requireProvider("google"), passport.authenticate("google", { scope: ["profile", "email"] }));
 
 router.get(
   "/google/callback",
+  requireProvider("google"),
+  captureGuestState,
   passport.authenticate("google", {
-    failureRedirect: `${process.env.CORS_ORIGIN}/login?error=google`,
+    failureRedirect: `${appOrigin}/login?error=google`,
   }),
-  async (req, res) => {
-    req.session.userId = req.user.id;
-    await mergeGuestCartIntoUserCart(req);
-
-    req.session.save(() => {
-      res.redirect(`${process.env.CORS_ORIGIN}/`);
-    });
-  }
+  finishOAuth
 );
 
 module.exports = router;

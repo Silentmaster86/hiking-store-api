@@ -71,7 +71,7 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // ✅ FACEBOOK (bez scope email na siłę — bo mówisz, że FB blokuje)
-passport.use(
+if (process.env.FB_APP_ID && process.env.FB_APP_SECRET) passport.use(
   new FacebookStrategy(
     {
       clientID: process.env.FB_APP_ID,
@@ -103,7 +103,7 @@ passport.use(
 );
 
 // ✅ GOOGLE (tu email działa normalnie)
-passport.use(
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
