@@ -1,7 +1,7 @@
 name: API checks
 on:
   push:
-    branches: [main, fix/store-stabilization]
+    branches: [main, fix/store-stabilization, fix/orders-and-checkout]
   pull_request:
 jobs:
   test:

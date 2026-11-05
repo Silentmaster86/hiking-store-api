@@ -1,6 +1,7 @@
 // Only guest order grants survive a logout. Account carts stay with the account.
 function guestState(session) {
-  return session.guestOrders ? { guestOrders: session.guestOrders } : {};
+  return { ...(session.guestOrders ? { guestOrders: session.guestOrders } : {}),
+    ...(session.checkoutOwner ? { checkoutOwner: session.checkoutOwner } : {}) };
 }
 
 function regenerateSession(req, values = {}) {

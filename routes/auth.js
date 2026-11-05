@@ -5,6 +5,7 @@ const passport = require("passport");
 const mergeGuestCart = require("../services/mergeGuestCart");
 const { guestState, regenerateSession, saveSession, logout } = require("../auth/session");
 
+const { normalizeEmail, validateRegistration } = require("../validation/auth");
 const router = express.Router();
 const appOrigin = process.env.APP_ORIGIN || process.env.CORS_ORIGIN || "http://localhost:5173";
 function requireProvider(provider) {
@@ -37,11 +38,13 @@ async function finishLogin(req, userId) {
 
 // ----- EMAIL/PASSWORD
 router.post("/register", async (req, res) => {
-  const { email, password, firstName = null, lastName = null } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
+  const { password, firstName = null, lastName = null } = req.body || {};
+  const parsed = validateRegistration(req.body);
+  if (!parsed.valid) return res.status(422).json({ error: "Please check the highlighted fields.", code: "VALIDATION_ERROR", fieldErrors: parsed.fieldErrors });
+  const email = parsed.email;
 
   try {
-    const existing = await pool.query(`SELECT id FROM users WHERE email = $1`, [email]);
+    const existing = await pool.query(`SELECT id FROM users WHERE lower(btrim(email)) = $1`, [email]);
     if (existing.rows.length) return res.status(409).json({ error: "Email is already in use." });
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -56,26 +59,28 @@ router.post("/register", async (req, res) => {
     await finishLogin(req, created.rows[0].id);
     return res.status(201).json({ user: toPublicUser(created.rows[0]) });
   } catch (err) {
-    console.error(err);
+    if (err.code === "23505") return res.status(409).json({ error: "Email is already in use." });
+    console.error(err.code);
     return res.status(500).json({ error: "Server error" });
   }
 });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body || {};
+  const email = normalizeEmail(req.body?.email);
+  const password = req.body?.password;
   if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
 
   try {
     const result = await pool.query(
       `SELECT id, email, password_hash, first_name, last_name, created_at
        FROM users
-       WHERE email = $1`,
+       WHERE lower(btrim(email)) = $1`,
       [email]
     );
     if (!result.rows.length) return res.status(401).json({ error: "Invalid credentials." });
 
     const user = result.rows[0];
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const ok = typeof password === "string" && user.password_hash !== "__OAUTH_ONLY__" && await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials." });
 
     await finishLogin(req, user.id);
