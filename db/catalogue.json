@@ -1,0 +1,130 @@
+[
+  {
+    "oldName": "Trail Backpack 35L",
+    "name": "35 L Trail Backpack",
+    "description": "Trail backpack with a 35 L capacity for day-long adventures.",
+    "price_cents": 8999,
+    "image_url": "/img/products/backpacks-01.jpg",
+    "category_slug": "backpacks"
+  },
+  {
+    "oldName": "Daypack 20L",
+    "name": "20 L Daypack",
+    "description": "Compact 20 L daypack for everyday outdoor essentials.",
+    "price_cents": 4999,
+    "image_url": "/img/products/backpacks-02-daypack.jpg",
+    "category_slug": "backpacks"
+  },
+  {
+    "oldName": "Waterproof Pack Cover",
+    "name": "Pack Storage Pouch",
+    "description": "Compact storage pouch for carrying small essentials on a backpack.",
+    "price_cents": 1299,
+    "image_url": "/img/products/backpacks-03-pack-cover.jpg",
+    "category_slug": "backpacks"
+  },
+  {
+    "oldName": "Backpack Hip Belt Pouch",
+    "name": "Compact Trail Backpack",
+    "description": "Compact backpack for day hikes and everyday outdoor essentials.",
+    "price_cents": 1599,
+    "image_url": "/img/products/backpacks-04-backpack.jpg",
+    "category_slug": "backpacks"
+  },
+  {
+    "oldName": "Waterproof Hiking Jacket",
+    "name": "Waterproof Hiking Jacket",
+    "description": "A shell-style jacket for layering on outdoor walks.",
+    "price_cents": 12999,
+    "image_url": "/img/products/jackets-02-rain-jacket.jpg",
+    "category_slug": "jackets"
+  },
+  {
+    "oldName": "Fleece Midlayer",
+    "name": "Fleece Midlayer",
+    "description": "A comfortable fleece layer for cooler days on the trail.",
+    "price_cents": 3999,
+    "image_url": "/img/products/jackets-03-fleece.jpg",
+    "category_slug": "jackets"
+  },
+  {
+    "oldName": "Down Gilet",
+    "name": "Lightweight Hiking Jacket",
+    "description": "Lightweight hooded jacket for layering on cool-weather walks.",
+    "price_cents": 6999,
+    "image_url": "/img/products/jackets-01.jpg",
+    "category_slug": "jackets"
+  },
+  {
+    "oldName": "Rain Poncho",
+    "name": "Rain Poncho",
+    "description": "Packable poncho for your outdoor kit.",
+    "price_cents": 2499,
+    "image_url": "/img/products/jackets-04-rain-poncho.jpg",
+    "category_slug": "jackets"
+  },
+  {
+    "oldName": "Hiking Boots Mid",
+    "name": "Mid-cut Hiking Boots",
+    "description": "Supportive mid-cut hiking boots with a grippy outsole.",
+    "price_cents": 8999,
+    "image_url": "/img/products/boots-01.jpg",
+    "category_slug": "boots"
+  },
+  {
+    "oldName": "Trail Shoes",
+    "name": "Trail Shoes",
+    "description": "Low-cut trail shoes for everyday walks and hikes.",
+    "price_cents": 7499,
+    "image_url": "/img/products/boots-04-trail-shoes.jpg",
+    "category_slug": "boots"
+  },
+  {
+    "oldName": "Merino Hiking Socks",
+    "name": "Cushioned Hiking Socks",
+    "description": "Cushioned socks for comfortable trail walks.",
+    "price_cents": 1299,
+    "image_url": "/img/products/boots-02-socks.jpg",
+    "category_slug": "boots"
+  },
+  {
+    "oldName": "Boot Waterproofing Spray",
+    "name": "Footwear Care Spray",
+    "description": "A footwear care accessory for your hiking kit.",
+    "price_cents": 999,
+    "image_url": "/img/products/boots-03-waterproof-spray.jpg",
+    "category_slug": "boots"
+  },
+  {
+    "oldName": "Trekking Poles (Pair)",
+    "name": "Trekking Poles (Pair)",
+    "description": "Aluminium trekking poles with adjustable straps.",
+    "price_cents": 4999,
+    "image_url": "/img/products/accessories-01-trekking-poles.jpg",
+    "category_slug": "accessories"
+  },
+  {
+    "oldName": "Insulated Bottle 750ml",
+    "name": "750 ml Insulated Bottle",
+    "description": "Reusable insulated bottle for carrying drinks on the trail.",
+    "price_cents": 2499,
+    "image_url": "/img/products/accessories-02-bottle.jpg",
+    "category_slug": "accessories"
+  },
+  {
+    "oldName": "Headlamp 300lm",
+    "name": "300 lm Head Torch",
+    "description": "Compact head torch with an adjustable head strap.",
+    "price_cents": 1999,
+    "image_url": "/img/products/accessories-04-headlamp.jpg",
+    "category_slug": "accessories"
+  },
+  {
+    "oldName": "First Aid Mini Kit",
+    "name": "Compact First Aid Kit",
+    "description": "A compact first aid pouch for your trail essentials.",
+    "price_cents": 1499,
+    "image_url": "/img/products/accessories-03-first-aid.jpg",
+    "category_slug": "accessories"
+  }
+]
