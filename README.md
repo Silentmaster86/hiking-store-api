@@ -56,6 +56,9 @@ Checkout uses a UUID `Idempotency-Key` header and transactional cart locking. Re
 with the same key. Set `DEMO_MODE=true` to enable explicit status simulation. OAuth
 credentials are optional for local email sign-in. Production cookie/proxy rollout
 and provider callbacks require matching configuration.
+External sign-in now checks a single-use state with a ten-minute limit. Accounts
+are identified by provider ID and are not automatically linked by email. Read
+[OAUTH.md](OAUTH.md) for behaviour, tests and the matching proxy/callback settings.
 
 Read [STABILIZATION.md](STABILIZATION.md) and [ORDER-FLOWS.md](ORDER-FLOWS.md) before
 changing hosting configuration or deploying migrations to an existing database.

@@ -16,10 +16,29 @@ test("HTTP store flows on migrated PostgreSQL", {
   const { migrate } = require("../db/migrate");
   await migrate(pool);
   await pool.query("INSERT INTO products(name, description, price_cents) VALUES ('Test backpack', 'Test only', 1499)");
-  const express = require("express"), session = require("express-session"), passport = require("passport");
+  Object.assign(process.env, {
+    GOOGLE_CLIENT_ID: "integration-google-client", GOOGLE_CLIENT_SECRET: "integration-only",
+    GOOGLE_CALLBACK_URL: "http://localhost:5173/api/auth/google/callback",
+    FB_APP_ID: "integration-facebook-client", FB_APP_SECRET: "integration-only",
+    FB_CALLBACK_URL: "http://localhost:5173/api/auth/facebook/callback",
+    APP_ORIGIN: "http://localhost:5173",
+  });
+  const express = require("express"), session = require("express-session");
+  const passport = require("../auth/passport");
+  const providerFixture = { exchanges: 0, fail: false, profile: null };
+  for (const name of ["google", "facebook"]) {
+    const strategy = passport._strategy(name);
+    strategy._oauth2.getOAuthAccessToken = (_code, _options, done) => {
+      providerFixture.exchanges++;
+      if (providerFixture.fail) return done(new Error("Private provider details"));
+      done(null, "test-access-token", "test-refresh-token", {});
+    };
+    strategy.userProfile = (_token, done) => done(null, providerFixture.profile);
+  }
+  const sessionStore = new session.MemoryStore();
   const app = express();
   app.use(express.json());
-  app.use(session({ secret: randomUUID(), resave: false, saveUninitialized: false }));
+  app.use(session({ store: sessionStore, secret: randomUUID(), resave: false, saveUninitialized: false }));
   app.use(passport.initialize());
   for (const route of ["auth", "cart", "checkout", "orders", "payments"]) app.use(`/${route}`, require(`../routes/${route}`));
   const server = app.listen(0, "127.0.0.1");
@@ -33,7 +52,14 @@ test("HTTP store flows on migrated PostgreSQL", {
   const origin = `http://127.0.0.1:${server.address().port}`;
   function agent(initialCookie = "") {
     let cookie = initialCookie;
-    return { cookie: () => cookie, async request(path, method = "GET", body, expected = 200, headers = {}) {
+    async function redirect(path) {
+      const response = await fetch(origin + path, { redirect: "manual", headers: cookie ? { Cookie: cookie } : {} });
+      const nextCookie = response.headers.getSetCookie()[0];
+      if (nextCookie) cookie = nextCookie.split(";")[0];
+      assert.equal(response.status, 302, path);
+      return new URL(response.headers.get("location"));
+    }
+    return { cookie: () => cookie, redirect, async request(path, method = "GET", body, expected = 200, headers = {}) {
       const response = await fetch(origin + path, { method,
         headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}), ...headers },
         ...(body ? { body: JSON.stringify(body) } : {}),
@@ -190,6 +216,121 @@ test("HTTP store flows on migrated PostgreSQL", {
     await expired.request(`/checkout/attempt/${headers["Idempotency-Key"]}`, "GET", undefined, 404);
     await expired.request("/checkout", "POST", payload, 409, headers);
   });
+
+  async function startOAuth(browser, provider = "google", returnTo = "/order/28/confirmation") {
+    const location = await browser.redirect(`/auth/${provider}?returnTo=${encodeURIComponent(returnTo)}`);
+    assert.equal(location.hostname, provider === "google" ? "accounts.google.com" : "www.facebook.com");
+    const state = location.searchParams.get("state");
+    assert.match(state, /^[A-Za-z0-9_-]{43}$/);
+    return state;
+  }
+  function profile(id, email, verified = true) {
+    return { id, emails: email ? [{ value: email, verified }] : [], name: { givenName: "Test", familyName: "OAuth" } };
+  }
+  async function expireOAuthAttempts() {
+    const sessions = await new Promise((resolve, reject) => sessionStore.all((error, values) => error ? reject(error) : resolve(values)));
+    for (const [id, saved] of Object.entries(sessions)) {
+      for (const attempt of Object.values(saved.oauthAttempts || {})) attempt.createdAt = Date.now() - 11 * 60 * 1000;
+      await new Promise((resolve, reject) => sessionStore.set(id, saved, error => error ? reject(error) : resolve()));
+    }
+  }
+  await t.test("OAuth rejects missing, wrong, cross-browser, expired and replayed state before exchanging a code", async () => {
+    const before = providerFixture.exchanges;
+    let browser = agent();
+    let state = await startOAuth(browser);
+    let failed = await agent().redirect(`/auth/google/callback?code=test&state=${state}`);
+    assert.equal(failed.searchParams.get("reason"), "session");
+    failed = await browser.redirect(`/auth/google/callback?code=test&state=${"x".repeat(43)}`);
+    assert.equal(failed.searchParams.get("reason"), "session");
+    assert.equal((await browser.redirect(`/auth/google/callback?code=test&state=${state}`)).searchParams.get("reason"), "session");
+    state = await startOAuth(browser);
+    assert.equal((await browser.redirect("/auth/google/callback?code=test")).searchParams.get("reason"), "session");
+    assert.equal((await browser.redirect(`/auth/google/callback?code=test&state=${state}`)).searchParams.get("reason"), "session");
+    state = await startOAuth(browser);
+    assert.equal((await browser.redirect(`/auth/facebook/callback?code=test&state=${state}`)).searchParams.get("reason"), "session");
+    browser = agent(); state = await startOAuth(browser);
+    await expireOAuthAttempts();
+    assert.equal((await browser.redirect(`/auth/google/callback?code=test&state=${state}`)).searchParams.get("reason"), "session");
+    assert.equal(providerFixture.exchanges, before);
+    assert.equal((await browser.request("/auth/me")).user, null);
+  });
+  await t.test("OAuth cancellation and provider failures return safe feedback and preserve the destination", async () => {
+    const browser = agent(); let state = await startOAuth(browser);
+    let failed = await browser.redirect(`/auth/google/callback?error=access_denied&state=${state}`);
+    assert.equal(failed.searchParams.get("reason"), "cancelled");
+    assert.equal(failed.searchParams.get("returnTo"), "/order/28/confirmation");
+    assert.equal((await browser.redirect(`/auth/google/callback?code=test&state=${state}`)).searchParams.get("reason"), "session");
+    state = await startOAuth(browser);
+    providerFixture.fail = true;
+    failed = await browser.redirect(`/auth/google/callback?code=test&state=${state}`);
+    providerFixture.fail = false;
+    assert.equal(failed.searchParams.get("reason"), "failed");
+    assert.equal(failed.href.includes("Private"), false);
+    const clientId = process.env.GOOGLE_CLIENT_ID; delete process.env.GOOGLE_CLIENT_ID;
+    failed = await browser.redirect("/auth/google?returnTo=%2Forders");
+    process.env.GOOGLE_CLIENT_ID = clientId;
+    assert.equal(failed.searchParams.get("reason"), "unavailable");
+    assert.equal(failed.searchParams.get("returnTo"), "/orders");
+  });
+  await t.test("OAuth identity cannot overwrite or sign in to a different account sharing an email", async () => {
+    const browser = agent();
+    const emailUser = (await pool.query("SELECT id, oauth_provider, oauth_id FROM users WHERE email = $1", [credentials.email])).rows[0];
+    providerFixture.profile = profile("cannot-link-password-user", credentials.email);
+    let state = await startOAuth(browser);
+    let failed = await browser.redirect(`/auth/google/callback?code=test&state=${state}`);
+    assert.equal(failed.searchParams.get("reason"), "account_conflict");
+    assert.equal((await browser.request("/auth/me")).user, null);
+    assert.deepEqual((await pool.query("SELECT id, oauth_provider, oauth_id FROM users WHERE id = $1", [emailUser.id])).rows[0], emailUser);
+    providerFixture.profile = profile("new-unverified-google", "unverified@example.com", false);
+    state = await startOAuth(browser);
+    failed = await browser.redirect(`/auth/google/callback?code=test&state=${state}`);
+    assert.equal(failed.searchParams.get("reason"), "unverified_email");
+    assert.equal((await pool.query("SELECT count(*) FROM users WHERE oauth_id = 'new-unverified-google'")).rows[0].count, "0");
+  });
+  await t.test("successful Google OAuth rotates the session, merges once and keeps guest order access", async () => {
+    const browser = await guestWithItem();
+    const placed = (await browser.request("/checkout", "POST", payload, 201, attempt())).order;
+    await browser.request("/cart/items", "POST", { productId: 1, quantity: 2 }, 201);
+    const oldCookie = browser.cookie();
+    const state = await startOAuth(browser, "google", `/order/${placed.id}/confirmation`);
+    providerFixture.profile = profile("stable-google-id", "oauth@example.com");
+    const target = await browser.redirect(`/auth/google/callback?code=test&state=${state}`);
+    assert.equal(target.href, `http://localhost:5173/order/${placed.id}/confirmation`);
+    assert.notEqual(browser.cookie(), oldCookie);
+    assert.equal((await agent(oldCookie).request("/auth/me")).user, null);
+    const user = (await browser.request("/auth/me")).user;
+    assert.equal(user.email, "oauth@example.com");
+    assert.equal((await browser.request(`/orders/${placed.id}`)).order.canClaim, true);
+    assert.equal((await browser.request("/cart")).items[0].quantity, 2);
+    assert.equal((await browser.redirect(`/auth/google/callback?code=test&state=${state}`)).searchParams.get("reason"), "session");
+    await browser.request("/auth/logout", "POST");
+    const next = await startOAuth(browser, "google", "//example.com");
+    providerFixture.profile = profile("stable-google-id", "changed@example.com", false);
+    assert.equal((await browser.redirect(`/auth/google/callback?code=test&state=${next}`)).href, "http://localhost:5173/");
+    assert.equal((await browser.request("/auth/me")).user.id, user.id);
+    assert.equal((await browser.request("/cart")).items[0].quantity, 2);
+    providerFixture.profile = profile("different-facebook-id", "oauth@example.com");
+    const facebook = agent(); const ownState = await startOAuth(facebook, "facebook");
+    assert.equal((await facebook.redirect(`/auth/facebook/callback?code=test&state=${ownState}`)).searchParams.get("reason"), "account_conflict");
+    assert.equal((await pool.query("SELECT oauth_provider, oauth_id FROM users WHERE id=$1", [user.id])).rows[0].oauth_provider, "google");
+  });
+  await t.test("Facebook can sign in without an email and repeated identities are not duplicated", async () => {
+    const browser = agent();
+    providerFixture.profile = profile("facebook-without-email", null);
+    let state = await startOAuth(browser, "facebook");
+    await browser.redirect(`/auth/facebook/callback?code=test&state=${state}`);
+    const user = (await browser.request("/auth/me")).user;
+    assert.ok(user.id); assert.equal(user.email, null);
+    await browser.request("/auth/logout", "POST");
+    state = await startOAuth(browser, "facebook");
+    await browser.redirect(`/auth/facebook/callback?code=test&state=${state}`);
+    assert.equal((await browser.request("/auth/me")).user.id, user.id);
+    const { findOrCreateOAuthUser } = require("../services/oauthUser");
+    const identities = await Promise.all(Array.from({ length: 4 }, () => findOrCreateOAuthUser(pool, { provider: "facebook", providerId: "concurrent-fb-id" })));
+    assert.equal(new Set(identities.map(item => item.id)).size, 1);
+    assert.equal((await pool.query("SELECT count(*) FROM users WHERE oauth_provider='facebook' AND oauth_id='concurrent-fb-id'")).rows[0].count, "1");
+  });
+
   await t.test("additive migration preserves orders from the old schema", async () => {
     const legacySchema = `legacy_${randomUUID().replaceAll("-", "")}`;
     await admin.query(`CREATE SCHEMA ${legacySchema}`);
