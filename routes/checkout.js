@@ -1,144 +1,38 @@
 const express = require("express");
+const { randomUUID } = require("node:crypto");
 const pool = require("../db");
-const crypto = require("crypto");
-
+const { validateCheckout } = require("../validation/checkout");
+const { createOrder, ownsAttempt } = require("../services/checkoutService");
+const { grantOrder, publicOrder } = require("../services/orderAccess");
+const { saveSession } = require("../auth/session");
 const router = express.Router();
-
-async function getOrCreateCartId(req) {
-  const userId = req.session.userId || null;
-
-  if (userId) {
-    const existing = await pool.query(`SELECT id FROM carts WHERE user_id = $1`, [userId]);
-    if (existing.rows.length) return existing.rows[0].id;
-
-    const created = await pool.query(
-      `INSERT INTO carts (user_id) VALUES ($1) RETURNING id`,
-      [userId]
-    );
-    return created.rows[0].id;
-  }
-
-  if (req.session.cartId) {
-    const existing = await pool.query(
-      `SELECT id FROM carts WHERE id = $1 AND user_id IS NULL`,
-      [req.session.cartId]
-    );
-    if (existing.rows.length) return existing.rows[0].id;
-  }
-
-  const created = await pool.query(`INSERT INTO carts (user_id) VALUES (NULL) RETURNING id`);
-  req.session.cartId = created.rows[0].id;
-  return created.rows[0].id;
-}
-
-/**
- * POST /checkout
- */
+router.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+router.get("/attempt/:key", async (req, res) => {
+  if (!/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(req.params.key)) return res.status(400).json({ error: "Invalid checkout attempt." });
+  const order = (await pool.query("SELECT * FROM orders WHERE checkout_key = $1", [req.params.key])).rows[0];
+  if (!ownsAttempt(req, order)) return res.status(404).json({ error: "No completed order was found for this attempt in this session." });
+  grantOrder(req, order);
+  await saveSession(req);
+  res.json({ order: publicOrder(req, order) });
+});
 router.post("/", async (req, res) => {
-  const userId = req.session.userId || null;
-  const guestToken = userId ? null : crypto.randomUUID();
-
-  const { email = null, firstName = null, lastName = null, shipping = {} } = req.body || {};
-  const { address1 = null, address2 = null, city = null, postcode = null, country = "UK" } = shipping || {};
-
-  // guest musi mieć email
-  if (!userId && !email) {
-    return res.status(400).json({ error: "Email is required for guest checkout." });
-  }
-
+  const parsed = validateCheckout(req.body);
+  if (!parsed.valid) return res.status(422).json({ error: "Please check the highlighted fields.", code: "VALIDATION_ERROR", fieldErrors: parsed.fieldErrors });
+  const key = (req.get("Idempotency-Key") || randomUUID()).toLowerCase();
+  if (!/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(key)) return res.status(422).json({ error: "Invalid checkout attempt.", code: "INVALID_CHECKOUT_KEY" });
   try {
-    const cartId = await getOrCreateCartId(req);
-
-    const cartItems = await pool.query(
-      `SELECT
-         ci.product_id,
-         ci.quantity,
-         p.name,
-         p.price_cents
-       FROM cart_items ci
-       JOIN products p ON p.id = ci.product_id
-       WHERE ci.cart_id = $1
-       ORDER BY ci.id ASC`,
-      [cartId]
-    );
-
-    if (!cartItems.rows.length) {
-      return res.status(400).json({ error: "Cart is empty." });
+    if (!req.session.checkoutOwner) {
+      req.session.checkoutOwner = randomUUID();
+      await saveSession(req);
     }
-
-    let subtotal = 0;
-    for (const row of cartItems.rows) {
-      subtotal += row.price_cents * row.quantity;
-    }
-    const shippingCents = 0;
-    const total = subtotal + shippingCents;
-
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      const orderResult = await client.query(
-        `INSERT INTO orders (
-           user_id, email, first_name, last_name,
-           shipping_address1, shipping_address2, shipping_city, shipping_postcode, shipping_country,
-           status, currency,
-           subtotal_cents, shipping_cents, total_cents,
-           guest_token
-         )
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending','GBP',$10,$11,$12,$13)
-         RETURNING id, total_cents, status, created_at, guest_token`,
-        [
-          userId,
-          email,
-          firstName,
-          lastName,
-          address1,
-          address2,
-          city,
-          postcode,
-          country,
-          subtotal,
-          shippingCents,
-          total,
-          guestToken,
-        ]
-      );
-
-      const order = orderResult.rows[0];
-
-      for (const item of cartItems.rows) {
-        await client.query(
-          `INSERT INTO order_items (order_id, product_id, quantity, price_cents)
-           VALUES ($1, $2, $3, $4)`,
-          [order.id, item.product_id, item.quantity, item.price_cents]
-        );
-      }
-
-      await client.query(`DELETE FROM cart_items WHERE cart_id = $1`, [cartId]);
-
-      await client.query("COMMIT");
-
-      return res.status(201).json({
-        order: {
-          id: order.id,
-          total_cents: order.total_cents,
-          subtotal_cents: subtotal,
-          shipping_cents: shippingCents,
-          status: order.status,
-          created_at: order.created_at,
-          guestToken: order.guest_token || null,
-        },
-      });
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error" });
+    const result = await createOrder(pool, req, parsed.value, key);
+    grantOrder(req, result.order);
+    await saveSession(req);
+    if (result.conflict) return res.status(409).json({ error: "This attempt already placed an order with different details. Review that order before starting another.", code: "IDEMPOTENCY_CONFLICT", orderId: result.order.id });
+    return res.status(result.replay ? 200 : 201).json({ order: publicOrder(req, result.order), replay: result.replay });
+  } catch (error) {
+    if (!error.status) console.error("Checkout failed:", error.code || "internal error");
+    return res.status(error.status || 500).json({ error: error.status ? error.message : "We couldn’t complete checkout. Retry with the same checkout attempt.", code: error.code || "CHECKOUT_FAILED" });
   }
 });
-
 module.exports = router;

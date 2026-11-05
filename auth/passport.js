@@ -2,6 +2,7 @@ const passport = require("passport");
 const FacebookStrategy = require("passport-facebook").Strategy;
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const pool = require("../db");
+const { normalizeEmail } = require("../validation/auth");
 
 async function findOrCreateOAuthUser({ provider, providerId, email, firstName, lastName }) {
   // 1) po provider+id
@@ -19,7 +20,7 @@ async function findOrCreateOAuthUser({ provider, providerId, email, firstName, l
     const byEmail = await pool.query(
       `SELECT id, email, first_name, last_name, created_at
        FROM users
-       WHERE email = $1
+       WHERE lower(btrim(email)) = $1
        LIMIT 1`,
       [email]
     );
@@ -82,7 +83,7 @@ if (process.env.FB_APP_ID && process.env.FB_APP_SECRET) passport.use(
     async (_accessToken, _refreshToken, profile, done) => {
       try {
         // UWAGA: bez permission email -> email często będzie null
-        const email = profile.emails?.[0]?.value || null;
+        const email = normalizeEmail(profile.emails?.[0]?.value) || null;
         const firstName = profile.name?.givenName || null;
         const lastName = profile.name?.familyName || null;
 
@@ -112,7 +113,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) passport.u
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
-        const email = profile.emails?.[0]?.value || null;
+        const email = normalizeEmail(profile.emails?.[0]?.value) || null;
         const firstName = profile.name?.givenName || null;
         const lastName = profile.name?.familyName || null;
 

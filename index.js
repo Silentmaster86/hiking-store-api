@@ -27,6 +27,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 app.use(express.json());
+app.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
 
 app.use(
   cors({
@@ -70,5 +71,17 @@ app.use("/orders", ordersRouter);
 app.use("/payments", paymentsRouter);
 app.use("/auth", authRouter);
 
+app.use((err, _req, res, _next) => {
+  console.error("Request failed:", err.code || "internal error");
+  res.status(500).json({ error: "The request could not be completed. Please try again." });
+});
+
 const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`✅ API running on port ${port}`));
+const { migrate } = require("./db/migrate");
+migrate(pool).then(() => {
+  app.listen(port, () => console.log(`API running on port ${port}`));
+}).catch(async (error) => {
+  console.error("Database migration failed; server was not started:", error.message);
+  await pool.end();
+  process.exitCode = 1;
+});
