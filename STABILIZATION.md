@@ -1,3 +1,6 @@
+> Historical notes for the first stabilization stage. Current checkout and catalogue
+> behaviour is documented in ORDER-FLOWS.md, CATALOGUE.md and README.md.
+
 # Session and cart stabilization
 
 Account carts remain attached to their accounts when signing out. A guest starts
