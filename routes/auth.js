@@ -5,6 +5,7 @@ const passport = require("passport");
 const mergeGuestCart = require("../services/mergeGuestCart");
 const { guestState, regenerateSession, saveSession, logout } = require("../auth/session");
 
+const { safeReturnTo } = require("../auth/returnTo");
 const { normalizeEmail, validateRegistration } = require("../validation/auth");
 const router = express.Router();
 const appOrigin = process.env.APP_ORIGIN || process.env.CORS_ORIGIN || "http://localhost:5173";
@@ -125,8 +126,12 @@ router.get("/me", async (req, res) => {
   }
 });
 
+function rememberReturnTo(req, _res, next) {
+  req.session.returnTo = safeReturnTo(req.query.returnTo, appOrigin);
+  req.session.save((error) => error ? next(error) : next());
+}
 function captureGuestState(req, _res, next) {
-  req.guestState = { ...guestState(req.session), cartId: req.session.cartId };
+  req.guestState = { ...guestState(req.session), cartId: req.session.cartId, returnTo: req.session.returnTo };
   next();
 }
 
@@ -137,15 +142,17 @@ async function finishOAuth(req, res, next) {
     await mergeGuestCart(pool, userId, req.session.cartId);
     delete req.session.cartId;
     req.session.userId = userId;
+    const returnTo = safeReturnTo(req.session.returnTo, appOrigin);
+    delete req.session.returnTo;
     await saveSession(req);
-    res.redirect(`${appOrigin}/`);
+    res.redirect(`${appOrigin}${returnTo}`);
   } catch (err) {
     next(err);
   }
 }
 
 // ----- OAUTH FACEBOOK
-router.get("/facebook", requireProvider("facebook"), passport.authenticate("facebook"));
+router.get("/facebook", requireProvider("facebook"), rememberReturnTo, passport.authenticate("facebook"));
 
 router.get(
   "/facebook/callback",
@@ -158,7 +165,7 @@ router.get(
 );
 
 // ----- OAUTH GOOGLE
-router.get("/google", requireProvider("google"), passport.authenticate("google", { scope: ["profile", "email"] }));
+router.get("/google", requireProvider("google"), rememberReturnTo, passport.authenticate("google", { scope: ["profile", "email"] }));
 
 router.get(
   "/google/callback",

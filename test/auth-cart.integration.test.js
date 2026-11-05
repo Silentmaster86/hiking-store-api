@@ -182,6 +182,14 @@ test("HTTP store flows on migrated PostgreSQL", {
     await owner.request("/payments/mock", "POST", { orderId: order.id }, 409);
     delete process.env.DEMO_MODE;
   });
+  await t.test("an expired guest order cannot be recovered by replaying its checkout key", async () => {
+    const expired = await guestWithItem(), headers = attempt();
+    const expiredOrder = (await expired.request("/checkout", "POST", payload, 201, headers)).order;
+    await pool.query("UPDATE orders SET created_at = NOW() - INTERVAL '8 days' WHERE id = $1", [expiredOrder.id]);
+    await expired.request(`/orders/${expiredOrder.id}`, "GET", undefined, 404);
+    await expired.request(`/checkout/attempt/${headers["Idempotency-Key"]}`, "GET", undefined, 404);
+    await expired.request("/checkout", "POST", payload, 409, headers);
+  });
   await t.test("additive migration preserves orders from the old schema", async () => {
     const legacySchema = `legacy_${randomUUID().replaceAll("-", "")}`;
     await admin.query(`CREATE SCHEMA ${legacySchema}`);

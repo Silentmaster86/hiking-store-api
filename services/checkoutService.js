@@ -1,11 +1,12 @@
 const { randomUUID } = require("node:crypto");
 const { getOrCreateCartId, lockCart } = require("./cartAccess");
+const { guestAccessExpires } = require("./orderAccess");
 const { fingerprint } = require("../validation/checkout");
 const failure = (status, code, message) => Object.assign(new Error(message), { status, code });
 function ownsAttempt(req, order) {
   if (!order) return false;
   return order.user_id != null ? order.user_id === req.session.userId
-    : !!req.session.checkoutOwner && order.checkout_owner === `guest:${req.session.checkoutOwner}`;
+    : !!req.session.checkoutOwner && guestAccessExpires(order) > Date.now() && order.checkout_owner === `guest:${req.session.checkoutOwner}`;
 }
 async function createOrder(pool, req, value, key) {
   const client = await pool.connect();

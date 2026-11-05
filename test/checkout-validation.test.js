@@ -30,7 +30,7 @@ test("registration enforces the password requirements and email normalization", 
   assert.equal(validateRegistration({ email: "a@example.com", password: "a secure test password" }).valid, true);
 });
 test("guest access is bound to an expiring grant and never just an order number", () => {
-  const order = { id: 10, user_id: null, guest_token: "secret", checkout_key: "internal", checkout_owner: "internal", checkout_hash: "internal" };
+  const order = { id: 10, created_at: new Date(), user_id: null, guest_token: "secret", checkout_key: "internal", checkout_owner: "internal", checkout_hash: "internal" };
   const req = { session: {} }, other = { session: {} };
   assert.equal(canRead(req, order), false);
   grantOrder(req, order);
@@ -47,4 +47,17 @@ test("after claiming, only the owning account can read the order", () => {
   const order = { id: 10, user_id: 3, guest_token: null };
   assert.equal(canRead({ session: { userId: 3 } }, order), true);
   assert.equal(canRead({ session: { userId: 4, guestOrders: { 10: { token: "secret", expiresAt: Date.now() + 10000 } } } }, order), false);
+});
+
+test("replaying an old guest checkout cannot extend its access deadline", () => {
+  const order = { id: 12, user_id: null, guest_token: "secret", created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) };
+  const req = { session: {} };
+  grantOrder(req, order);
+  assert.equal(canRead(req, order), false);
+});
+const { safeReturnTo } = require("../auth/returnTo");
+test("OAuth return paths stay on the application origin", () => {
+  const origin = "https://hiking.example";
+  assert.equal(safeReturnTo("/order/7/confirmation?source=guest", origin), "/order/7/confirmation?source=guest");
+  for (const value of ["https://evil.example", "//evil.example", "/\\evil.example", null]) assert.equal(safeReturnTo(value, origin), "/");
 });
