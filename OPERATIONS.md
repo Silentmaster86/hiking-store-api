@@ -43,7 +43,15 @@ or monitoring service. Keep logs free of passwords, tokens and delivery details.
 Verify secure cookies and the OAuth host/callback configuration in OAUTH.md.
 REQUEST-SECURITY.md describes the client-first header rollout and proxy-rate limits.
 
-PR order: both cart/recovery PRs, then the client security PR, then the API security
-PR, then API catalogue/release and client catalogue/release. The latter contains
-the tested API commit pin for reproducible browser integration checks. Review each
-PR's Checks before merging. Production environment values override source defaults.
+## Remaining main rollout
+
+Merge and deploy client PR #8 first, then API PR #8. Both target main directly.
+They bring the previously reviewed security/catalogue/release work from the
+intermediate branches into the production branch. A merged PR whose base was a
+working branch did not deploy that work to main. Do not re-merge the closed PRs
+or retarget anything to an intermediate branch.
+
+The client must be deployed first because API writes require the new request
+header. Review Checks and verify the target says main before merging.
+Production environment values override source defaults. The client's
+DEPLOYMENT-SETTINGS.md describes the separate hosting/OAuth cookie-host cutover.
