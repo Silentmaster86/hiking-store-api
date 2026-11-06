@@ -63,10 +63,12 @@ are identified by provider ID and are not automatically linked by email. Read
 Read [STABILIZATION.md](STABILIZATION.md) and [ORDER-FLOWS.md](ORDER-FLOWS.md) before
 changing hosting configuration or deploying migrations to an existing database.
 
+See [OPERATIONS.md](OPERATIONS.md) for local PostgreSQL, verification, health checks and safe backup/restore commands.
+
 ## Tests
 
 ```sh
-npm test
+npm run verify
 ```
 
 Unit tests run without a database. Supply `TEST_DATABASE_URL` for the isolated

@@ -5,7 +5,13 @@
     "description": "Trail backpack with a 35 L capacity for day-long adventures.",
     "price_cents": 8999,
     "image_url": "/img/products/backpacks-01.jpg",
-    "category_slug": "backpacks"
+    "category_slug": "backpacks",
+    "details": "Trail backpack with a 35 L capacity for day-long adventures. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Backpacks & Accessories",
+      "Catalogue": "Illustrative demo item",
+      "Capacity": "35 L (demo)"
+    }
   },
   {
     "oldName": "Daypack 20L",
@@ -13,7 +19,13 @@
     "description": "Compact 20 L daypack for everyday outdoor essentials.",
     "price_cents": 4999,
     "image_url": "/img/products/backpacks-02-daypack.jpg",
-    "category_slug": "backpacks"
+    "category_slug": "backpacks",
+    "details": "Compact 20 L daypack for everyday outdoor essentials. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Backpacks & Accessories",
+      "Catalogue": "Illustrative demo item",
+      "Capacity": "20 L (demo)"
+    }
   },
   {
     "oldName": "Waterproof Pack Cover",
@@ -21,7 +33,12 @@
     "description": "Compact storage pouch for carrying small essentials on a backpack.",
     "price_cents": 1299,
     "image_url": "/img/products/backpacks-03-pack-cover.jpg",
-    "category_slug": "backpacks"
+    "category_slug": "backpacks",
+    "details": "Compact storage pouch for carrying small essentials on a backpack. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Backpacks & Accessories",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Backpack Hip Belt Pouch",
@@ -29,7 +46,12 @@
     "description": "Compact backpack for day hikes and everyday outdoor essentials.",
     "price_cents": 1599,
     "image_url": "/img/products/backpacks-04-backpack.jpg",
-    "category_slug": "backpacks"
+    "category_slug": "backpacks",
+    "details": "Compact backpack for day hikes and everyday outdoor essentials. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Backpacks & Accessories",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Waterproof Hiking Jacket",
@@ -37,7 +59,12 @@
     "description": "A shell-style jacket for layering on outdoor walks.",
     "price_cents": 12999,
     "image_url": "/img/products/jackets-02-rain-jacket.jpg",
-    "category_slug": "jackets"
+    "category_slug": "jackets",
+    "details": "A shell-style jacket for layering on outdoor walks. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Jackets & Layers",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Fleece Midlayer",
@@ -45,7 +72,12 @@
     "description": "A comfortable fleece layer for cooler days on the trail.",
     "price_cents": 3999,
     "image_url": "/img/products/jackets-03-fleece.jpg",
-    "category_slug": "jackets"
+    "category_slug": "jackets",
+    "details": "A comfortable fleece layer for cooler days on the trail. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Jackets & Layers",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Down Gilet",
@@ -53,7 +85,12 @@
     "description": "Lightweight hooded jacket for layering on cool-weather walks.",
     "price_cents": 6999,
     "image_url": "/img/products/jackets-01.jpg",
-    "category_slug": "jackets"
+    "category_slug": "jackets",
+    "details": "Lightweight hooded jacket for layering on cool-weather walks. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Jackets & Layers",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Rain Poncho",
@@ -61,7 +98,12 @@
     "description": "Packable poncho for your outdoor kit.",
     "price_cents": 2499,
     "image_url": "/img/products/jackets-04-rain-poncho.jpg",
-    "category_slug": "jackets"
+    "category_slug": "jackets",
+    "details": "Packable poncho for your outdoor kit. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Jackets & Layers",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Hiking Boots Mid",
@@ -69,7 +111,12 @@
     "description": "Supportive mid-cut hiking boots with a grippy outsole.",
     "price_cents": 8999,
     "image_url": "/img/products/boots-01.jpg",
-    "category_slug": "boots"
+    "category_slug": "boots",
+    "details": "Supportive mid-cut hiking boots with a grippy outsole. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Footwear & Care",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Trail Shoes",
@@ -77,7 +124,12 @@
     "description": "Low-cut trail shoes for everyday walks and hikes.",
     "price_cents": 7499,
     "image_url": "/img/products/boots-04-trail-shoes.jpg",
-    "category_slug": "boots"
+    "category_slug": "boots",
+    "details": "Low-cut trail shoes for everyday walks and hikes. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Footwear & Care",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Merino Hiking Socks",
@@ -85,7 +137,12 @@
     "description": "Cushioned socks for comfortable trail walks.",
     "price_cents": 1299,
     "image_url": "/img/products/boots-02-socks.jpg",
-    "category_slug": "boots"
+    "category_slug": "boots",
+    "details": "Cushioned socks for comfortable trail walks. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Footwear & Care",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Boot Waterproofing Spray",
@@ -93,7 +150,12 @@
     "description": "A footwear care accessory for your hiking kit.",
     "price_cents": 999,
     "image_url": "/img/products/boots-03-waterproof-spray.jpg",
-    "category_slug": "boots"
+    "category_slug": "boots",
+    "details": "A footwear care accessory for your hiking kit. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Footwear & Care",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Trekking Poles (Pair)",
@@ -101,7 +163,12 @@
     "description": "Aluminium trekking poles with adjustable straps.",
     "price_cents": 4999,
     "image_url": "/img/products/accessories-01-trekking-poles.jpg",
-    "category_slug": "accessories"
+    "category_slug": "accessories",
+    "details": "Aluminium trekking poles with adjustable straps. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Accessories",
+      "Catalogue": "Illustrative demo item"
+    }
   },
   {
     "oldName": "Insulated Bottle 750ml",
@@ -109,7 +176,13 @@
     "description": "Reusable insulated bottle for carrying drinks on the trail.",
     "price_cents": 2499,
     "image_url": "/img/products/accessories-02-bottle.jpg",
-    "category_slug": "accessories"
+    "category_slug": "accessories",
+    "details": "Reusable insulated bottle for carrying drinks on the trail. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Accessories",
+      "Catalogue": "Illustrative demo item",
+      "Capacity": "750 ml (demo)"
+    }
   },
   {
     "oldName": "Headlamp 300lm",
@@ -117,7 +190,13 @@
     "description": "Compact head torch with an adjustable head strap.",
     "price_cents": 1999,
     "image_url": "/img/products/accessories-04-headlamp.jpg",
-    "category_slug": "accessories"
+    "category_slug": "accessories",
+    "details": "Compact head torch with an adjustable head strap. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Accessories",
+      "Catalogue": "Illustrative demo item",
+      "Light output": "300 lm (demo)"
+    }
   },
   {
     "oldName": "First Aid Mini Kit",
@@ -125,6 +204,11 @@
     "description": "A compact first aid pouch for your trail essentials.",
     "price_cents": 1499,
     "image_url": "/img/products/accessories-03-first-aid.jpg",
-    "category_slug": "accessories"
+    "category_slug": "accessories",
+    "details": "A compact first aid pouch for your trail essentials. This illustrative item is part of a portfolio catalogue. No goods are shipped. Product options, availability and performance ratings are not modelled in this demo.",
+    "specifications": {
+      "Category": "Accessories",
+      "Catalogue": "Illustrative demo item"
+    }
   }
 ]
