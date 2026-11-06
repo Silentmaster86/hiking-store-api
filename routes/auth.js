@@ -24,8 +24,9 @@ function toPublicUser(row) {
 async function finishLogin(req, userId) {
   const cartId = req.session.cartId;
   const state = guestState(req.session);
-  await mergeGuestCart(pool, userId, cartId);
-  await regenerateSession(req, { ...state, userId });
+  const merge = await mergeGuestCart(pool, userId, cartId);
+  const cartAdjusted = merge?.adjusted || req.session.cartAdjusted;
+  await regenerateSession(req, { ...state, userId, ...(cartAdjusted ? { cartAdjusted: true } : {}) });
   await saveSession(req);
 }
 
