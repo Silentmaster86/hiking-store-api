@@ -21,7 +21,7 @@ test("HTTP store flows on migrated PostgreSQL", {
     GOOGLE_CALLBACK_URL: "http://localhost:5173/api/auth/google/callback",
     FB_APP_ID: "integration-facebook-client", FB_APP_SECRET: "integration-only",
     FB_CALLBACK_URL: "http://localhost:5173/api/auth/facebook/callback",
-    APP_ORIGIN: "http://localhost:5173",
+    APP_ORIGIN: "http://localhost:5173", NODE_ENV: "test", SESSION_SECRET: "integration-session-secret-only",
   });
   const express = require("express"), session = require("express-session");
   const passport = require("../auth/passport");
@@ -36,11 +36,10 @@ test("HTTP store flows on migrated PostgreSQL", {
     strategy.userProfile = (_token, done) => done(null, providerFixture.profile);
   }
   const sessionStore = new session.MemoryStore();
-  const app = express();
-  app.use(express.json());
-  app.use(session({ store: sessionStore, secret: randomUUID(), resave: false, saveUninitialized: false }));
-  app.use(passport.initialize());
-  for (const route of ["auth", "cart", "checkout", "orders", "payments"]) app.use(`/${route}`, require(`../routes/${route}`));
+  const { runtime } = require("../config/runtime");
+  const { createApp } = require("../app");
+  const config = { ...runtime(), loginLimit: 1000, registerLimit: 1000, checkoutLimit: 1000 };
+  const app = createApp({ sessionStore, config });
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
   t.after(async () => {
@@ -61,7 +60,7 @@ test("HTTP store flows on migrated PostgreSQL", {
     }
     return { cookie: () => cookie, redirect, async request(path, method = "GET", body, expected = 200, headers = {}) {
       const response = await fetch(origin + path, { method,
-        headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}), ...headers },
+        headers: { "Content-Type": "application/json", "X-Store-Request": "1", ...(cookie ? { Cookie: cookie } : {}), ...headers },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
       const next = response.headers.getSetCookie()[0];
@@ -82,9 +81,36 @@ test("HTTP store flows on migrated PostgreSQL", {
     await guest.request("/cart/items", "POST", { productId, quantity }, 201);
     return guest;
   }
+  await t.test("production middleware rejects cross-site/simple writes and malformed bodies", async () => {
+    const send = (headers, body = "{}") => fetch(origin + "/auth/login", { method: "POST", headers, body });
+    assert.equal((await send({ "Content-Type": "application/json" })).status, 403);
+    assert.equal((await send({ "Content-Type": "application/json", "X-Store-Request": "1", Origin: "https://evil.invalid" })).status, 403);
+    assert.equal((await send({ "Content-Type": "text/plain", "X-Store-Request": "1" })).status, 415);
+    assert.equal((await send({ "Content-Type": "application/json", "X-Store-Request": "1" }, "{")).status, 400);
+    assert.equal((await send({ "Content-Type": "application/json", "X-Store-Request": "1" }, JSON.stringify({ data: "x".repeat(40000) }))).status, 413);
+    const emptyPost = await fetch(origin + "/auth/logout", { method: "POST", headers: { "X-Store-Request": "1" } });
+    assert.equal(emptyPost.status, 200, "Bodyless actions do not need a JSON content type");
+    const health = await fetch(origin + "/ready"); assert.equal(health.status, 200);
+    assert.equal(health.headers.get("X-Content-Type-Options"), "nosniff");
+    const preflight = await fetch(origin + "/cart/items", { method: "OPTIONS", headers: { Origin: "http://localhost:5173", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "x-store-request,content-type" } });
+    assert.equal(preflight.status, 204); assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), "http://localhost:5173");
+  });
+  await t.test("PostgreSQL rate limits are atomic and return a retry delay", async () => {
+    const { rateLimit } = require("../middleware/rateLimit");
+    const middleware = rateLimit(pool, { scope: "test", limit: 2, windowMs: 60000, secret: "test-only" });
+    const invoke = () => new Promise((resolve, reject) => {
+      const res = { set(name, value) { this.retry = value; }, status(code) { this.code = code; return this; }, json() { resolve({ code: this.code, retry: this.retry }); } };
+      middleware({ ip: "192.0.2.1" }, res, error => error ? reject(error) : resolve({ code: 200 }));
+    });
+    const results = await Promise.all([invoke(), invoke(), invoke()]);
+    assert.deepEqual(results.map(item => item.code).sort(), [200, 200, 429]);
+    assert.ok(Number(results.find(item => item.code === 429).retry) > 0);
+    await pool.query("UPDATE request_limits SET expires_at=NOW()-INTERVAL '1 second'");
+    assert.equal((await invoke()).code, 200);
+  });
   await t.test("migration can be applied twice without losing products", async () => {
     await migrate(pool);
-    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "3");
+    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "4");
     assert.equal((await pool.query("SELECT count(*) FROM products")).rows[0].count, "1");
   });
   await t.test("account cart survives repeated logout/login without duplication", async () => {
@@ -175,7 +201,7 @@ test("HTTP store flows on migrated PostgreSQL", {
   await t.test("simultaneous requests with one key return one order", async () => {
     const parallel = await guestWithItem(), headers = attempt();
     const send = async () => {
-      const response = await fetch(origin + "/checkout", { method: "POST", headers: { "Content-Type": "application/json", Cookie: parallel.cookie(), ...headers }, body: JSON.stringify(payload) });
+      const response = await fetch(origin + "/checkout", { method: "POST", headers: { "Content-Type": "application/json", "X-Store-Request": "1", Cookie: parallel.cookie(), ...headers }, body: JSON.stringify(payload) });
       return { status: response.status, data: await response.json() };
     };
     const results = await Promise.all([send(), send()]);
@@ -186,7 +212,7 @@ test("HTTP store flows on migrated PostgreSQL", {
   await t.test("distinct concurrent keys cannot consume the same cart twice", async () => {
     const parallel = await guestWithItem();
     const send = async () => {
-      const response = await fetch(origin + "/checkout", { method: "POST", headers: { "Content-Type": "application/json", Cookie: parallel.cookie(), ...attempt() }, body: JSON.stringify(payload) });
+      const response = await fetch(origin + "/checkout", { method: "POST", headers: { "Content-Type": "application/json", "X-Store-Request": "1", Cookie: parallel.cookie(), ...attempt() }, body: JSON.stringify(payload) });
       return response.status;
     };
     assert.deepEqual((await Promise.all([send(), send()])).sort(), [201, 400]);
