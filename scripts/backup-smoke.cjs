@@ -25,10 +25,13 @@ async function main() {
     await source.query("INSERT INTO orders(total_cents) VALUES(1234)");
     await source.query("INSERT INTO order_items(order_id,product_id,quantity,price_cents,product_name) VALUES(1,1,1,1234,'Preserved demo order')");
     const filename = path.join(directory, "test.dump");
-    for (const [command, args, url] of [["pg_dump", ["--format=custom", "--no-owner", "--no-privileges", "--file", filename], urls[0]], ["pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-privileges", "--dbname", "", filename], urls[1]]]) {
+    for (const [command, args, url] of [["pg_dump", ["--dbname", urls[0], "--format=custom", "--no-owner", "--no-privileges", "--file", filename], urls[0]], ["pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-privileges", "--dbname", urls[1], filename], urls[1]]]) {
       // Only newly created databases are involved; credentials are never logged.
       const result = spawnSync(command, args, { env: { ...process.env, PGDATABASE: url }, encoding: "utf8" });
-      if (result.error || result.status !== 0) throw new Error(`${command} failed; check PostgreSQL client installation/version`);
+      if (result.error || result.status !== 0) {
+        const detail = (result.error?.code || result.stderr || "unknown error").replace(/postgres(?:ql)?:\/\/\S+/g, "[connection redacted]").replaceAll(decodeURIComponent(new URL(url).password), "[redacted]");
+        throw new Error(`${command} failed: ${detail.slice(0, 600)}`);
+      }
     }
     const restored = new Pool({ connectionString: urls[1] }); pools.push(restored);
     const assert = require("node:assert/strict");
