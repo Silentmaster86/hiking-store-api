@@ -416,6 +416,14 @@ test("HTTP store flows on migrated PostgreSQL", {
       await seed(legacy); await seed(legacy);
       assert.equal((await legacy.query("SELECT count(*) FROM products")).rows[0].count, "17");
       assert.equal((await legacy.query("SELECT description FROM products WHERE name = 'Custom product'")).rows[0].description, "Owner copy");
+      await legacy.query("UPDATE products SET details='Authored details', specifications='{\"Custom\":\"Kept\"}' WHERE name='35 L Trail Backpack'");
+      await legacy.query("UPDATE products SET details=NULL, specifications='{}' WHERE name='20 L Daypack'");
+      const detailMigration = await require("node:fs/promises").readFile(require("node:path").join(__dirname, "../db/migrations/005_product_details.sql"), "utf8");
+      await legacy.query(detailMigration); await legacy.query(detailMigration);
+      const authored = (await legacy.query("SELECT details, specifications FROM products WHERE name='35 L Trail Backpack'")).rows[0];
+      assert.equal(authored.details, "Authored details"); assert.deepEqual(authored.specifications, { Custom: "Kept" });
+      assert.ok((await legacy.query("SELECT details FROM products WHERE name='20 L Daypack'")).rows[0].details);
+
     } finally { await legacy.end(); await admin.query(`DROP SCHEMA ${legacySchema} CASCADE`); }
   });
 });
