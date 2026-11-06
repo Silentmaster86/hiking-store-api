@@ -88,6 +88,8 @@ test("HTTP store flows on migrated PostgreSQL", {
     assert.equal((await send({ "Content-Type": "text/plain", "X-Store-Request": "1" })).status, 415);
     assert.equal((await send({ "Content-Type": "application/json", "X-Store-Request": "1" }, "{")).status, 400);
     assert.equal((await send({ "Content-Type": "application/json", "X-Store-Request": "1" }, JSON.stringify({ data: "x".repeat(40000) }))).status, 413);
+    const emptyPost = await fetch(origin + "/auth/logout", { method: "POST", headers: { "X-Store-Request": "1" } });
+    assert.equal(emptyPost.status, 200, "Bodyless actions do not need a JSON content type");
     const health = await fetch(origin + "/ready"); assert.equal(health.status, 200);
     assert.equal(health.headers.get("X-Content-Type-Options"), "nosniff");
     const preflight = await fetch(origin + "/cart/items", { method: "OPTIONS", headers: { Origin: "http://localhost:5173", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "x-store-request,content-type" } });

@@ -9,7 +9,8 @@ function requestSecurity(origins) {
       if ((!origin && req.get("Sec-Fetch-Site") === "cross-site") || req.get("X-Store-Request") !== "1") {
         return res.status(403).json({ error: "Refresh the page and try again.", code: "REQUEST_VERIFICATION_FAILED" });
       }
-      if (["POST", "PUT", "PATCH"].includes(req.method) && !req.is("application/json")) {
+      const hasBody = Number(req.get("Content-Length") || 0) > 0 || !!req.get("Transfer-Encoding");
+      if (hasBody && ["POST", "PUT", "PATCH"].includes(req.method) && !req.is("application/json")) {
         return res.status(415).json({ error: "Send a JSON request.", code: "JSON_REQUIRED" });
       }
     }
