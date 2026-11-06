@@ -110,6 +110,27 @@ test("HTTP store flows on migrated PostgreSQL", {
     await Promise.all([mergeGuestCart(pool, userId, guest.rows[0].id), mergeGuestCart(pool, userId, guest.rows[0].id)]);
     assert.equal((await owner.request("/cart")).items[0].quantity, 5);
   });
+  await t.test("merging caps quantities with a notice, consumes once, and repairs old carts", async () => {
+    const browser = agent(), login = { email: "limits@example.com", password: "a valid test password" };
+    await browser.request("/auth/register", "POST", login, 201);
+    await browser.request("/cart/items", "POST", { productId: 1, quantity: 60 }, 201);
+    await browser.request("/auth/logout", "POST");
+    await browser.request("/cart/items", "POST", { productId: 1, quantity: 60 }, 201);
+    await browser.request("/auth/login", "POST", login);
+    let cart = await browser.request("/cart");
+    assert.equal(cart.items[0].quantity, 99); assert.ok(cart.notice); assert.equal(cart.maxQuantity, 99);
+    await browser.request("/auth/login", "POST", login);
+    assert.equal((await browser.request("/cart")).items[0].quantity, 99);
+    await browser.request(`/cart/items/${cart.items[0].cart_item_id}`, "PATCH", { quantity: 98 });
+    assert.equal((await browser.request("/cart")).notice, null);
+    await pool.query("UPDATE cart_items SET quantity = 198 WHERE cart_id=$1", [cart.cartId]);
+    cart = await browser.request("/cart");
+    assert.equal(cart.items[0].quantity, 99); assert.ok(cart.notice);
+    await browser.request("/auth/logout", "POST");
+    await browser.request("/cart/items", "POST", { productId: 1, quantity: 1 }, 201);
+    await browser.request("/auth/login", "POST", login);
+    assert.equal((await browser.request("/cart")).items[0].quantity, 99);
+  });
   await t.test("validates registration and normalizes account email", async () => {
     await agent().request("/auth/register", "POST", { email: "weak@example.com", password: "x" }, 422);
     await owner.request("/auth/login", "POST", { ...credentials, email: credentials.email.toUpperCase() });
