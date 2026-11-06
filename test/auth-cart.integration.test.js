@@ -110,7 +110,7 @@ test("HTTP store flows on migrated PostgreSQL", {
   });
   await t.test("migration can be applied twice without losing products", async () => {
     await migrate(pool);
-    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "4");
+    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "5");
     assert.equal((await pool.query("SELECT count(*) FROM products")).rows[0].count, "1");
   });
   await t.test("account cart survives repeated logout/login without duplication", async () => {
@@ -378,6 +378,22 @@ test("HTTP store flows on migrated PostgreSQL", {
     assert.equal((await pool.query("SELECT count(*) FROM users WHERE oauth_provider='facebook' AND oauth_id='concurrent-fb-id'")).rows[0].count, "1");
   });
 
+  await t.test("checkout refuses an oversized legacy cart until the user reviews its correction", async () => {
+    const browser = await guestWithItem(), cart = await browser.request("/cart"), before = await countOrders();
+    await pool.query("UPDATE cart_items SET quantity=198 WHERE cart_id=$1", [cart.cartId]);
+    const rejected = await browser.request("/checkout", "POST", payload, 422, attempt());
+    assert.equal(rejected.code, "CART_QUANTITY_LIMIT"); assert.equal(await countOrders(), before);
+    const corrected = await browser.request("/cart"); assert.equal(corrected.items[0].quantity, 99); assert.ok(corrected.notice);
+  });
+  await t.test("product detail endpoint handles missing IDs and preserves authored details", async () => {
+    const detail = await agent().request("/products/1");
+    assert.equal(detail.id, 1); assert.deepEqual(detail.specifications, {});
+    await agent().request("/products/9999999", "GET", undefined, 404);
+    await agent().request("/products/invalid", "GET", undefined, 400);
+    await pool.query("UPDATE products SET details='Authored details', specifications='{\"Custom\":\"Kept\"}' WHERE id=1");
+    await migrate(pool);
+    assert.equal((await agent().request("/products/1")).details, "Authored details");
+  });
   await t.test("additive migration preserves orders from the old schema", async () => {
     const legacySchema = `legacy_${randomUUID().replaceAll("-", "")}`;
     await admin.query(`CREATE SCHEMA ${legacySchema}`);
@@ -400,6 +416,14 @@ test("HTTP store flows on migrated PostgreSQL", {
       await seed(legacy); await seed(legacy);
       assert.equal((await legacy.query("SELECT count(*) FROM products")).rows[0].count, "17");
       assert.equal((await legacy.query("SELECT description FROM products WHERE name = 'Custom product'")).rows[0].description, "Owner copy");
+      await legacy.query("UPDATE products SET details='Authored details', specifications='{\"Custom\":\"Kept\"}' WHERE name='35 L Trail Backpack'");
+      await legacy.query("UPDATE products SET details=NULL, specifications='{}' WHERE name='20 L Daypack'");
+      const detailMigration = await require("node:fs/promises").readFile(require("node:path").join(__dirname, "../db/migrations/005_product_details.sql"), "utf8");
+      await legacy.query(detailMigration); await legacy.query(detailMigration);
+      const authored = (await legacy.query("SELECT details, specifications FROM products WHERE name='35 L Trail Backpack'")).rows[0];
+      assert.equal(authored.details, "Authored details"); assert.deepEqual(authored.specifications, { Custom: "Kept" });
+      assert.ok((await legacy.query("SELECT details FROM products WHERE name='20 L Daypack'")).rows[0].details);
+
     } finally { await legacy.end(); await admin.query(`DROP SCHEMA ${legacySchema} CASCADE`); }
   });
 });

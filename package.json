@@ -9,7 +9,10 @@
     "start": "node index.js",
     "db:setup": "node db/migrate.js",
     "db:migrate": "node db/migrate.js",
-    "db:seed": "node db/seed.js"
+    "db:seed": "node db/seed.js",
+    "lint": "node scripts/check-syntax.cjs",
+    "verify": "npm run lint && npm test",
+    "test:backup": "node scripts/backup-smoke.cjs"
   },
   "keywords": [],
   "author": "",
@@ -29,5 +32,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }

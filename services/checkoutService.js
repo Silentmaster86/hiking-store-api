@@ -1,6 +1,7 @@
 const { randomUUID } = require("node:crypto");
 const { getOrCreateCartId, lockCart } = require("./cartAccess");
 const { guestAccessExpires } = require("./orderAccess");
+const { MAX_CART_QUANTITY } = require("./cartPolicy");
 const { fingerprint } = require("../validation/checkout");
 const failure = (status, code, message) => Object.assign(new Error(message), { status, code });
 function ownsAttempt(req, order) {
@@ -23,6 +24,7 @@ async function createOrder(pool, req, value, key) {
     await lockCart(client, cartId);
     const items = (await client.query(`SELECT ci.product_id, ci.quantity, p.price_cents, p.name
       FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE ci.cart_id = $1 ORDER BY ci.id`, [cartId])).rows;
+    if (items.some(item => item.quantity > MAX_CART_QUANTITY)) throw failure(422, "CART_QUANTITY_LIMIT", "Refresh your cart to review quantities before checkout.");
     if (!items.length) throw failure(400, "CART_EMPTY", "Your cart is empty.");
     const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price_cents, 0);
     if (!Number.isSafeInteger(subtotal) || subtotal > 2147483647) throw failure(422, "CART_TOTAL_TOO_LARGE", "Reduce the quantity of items in your cart.");
