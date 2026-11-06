@@ -2,58 +2,7 @@ const passport = require("passport");
 const FacebookStrategy = require("passport-facebook").Strategy;
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const pool = require("../db");
-const { normalizeEmail } = require("../validation/auth");
-
-async function findOrCreateOAuthUser({ provider, providerId, email, firstName, lastName }) {
-  // 1) po provider+id
-  const byOauth = await pool.query(
-    `SELECT id, email, first_name, last_name, created_at
-     FROM users
-     WHERE oauth_provider = $1 AND oauth_id = $2
-     LIMIT 1`,
-    [provider, providerId]
-  );
-  if (byOauth.rows.length) return byOauth.rows[0];
-
-  // 2) po email (jeśli jest)
-  if (email) {
-    const byEmail = await pool.query(
-      `SELECT id, email, first_name, last_name, created_at
-       FROM users
-       WHERE lower(btrim(email)) = $1
-       LIMIT 1`,
-      [email]
-    );
-
-    if (byEmail.rows.length) {
-      const updated = await pool.query(
-        `UPDATE users
-         SET oauth_provider=$1, oauth_id=$2, updated_at=NOW()
-         WHERE id=$3
-         RETURNING id, email, first_name, last_name, created_at`,
-        [provider, providerId, byEmail.rows[0].id]
-      );
-      return updated.rows[0];
-    }
-  }
-
-  // 3) create
-  const created = await pool.query(
-    `INSERT INTO users (email, password_hash, first_name, last_name, oauth_provider, oauth_id)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, email, first_name, last_name, created_at`,
-    [
-      email || `${providerId}@${provider}.oauth`,
-      "__OAUTH_ONLY__",
-      firstName || null,
-      lastName || null,
-      provider,
-      providerId,
-    ]
-  );
-
-  return created.rows[0];
-}
+const { findOrCreateOAuthUser } = require("../services/oauthUser");
 
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
@@ -71,7 +20,7 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-// ✅ FACEBOOK (bez scope email na siłę — bo mówisz, że FB blokuje)
+// Facebook may return no email; the provider ID is the login identity.
 if (process.env.FB_APP_ID && process.env.FB_APP_SECRET) passport.use(
   new FacebookStrategy(
     {
@@ -82,12 +31,11 @@ if (process.env.FB_APP_ID && process.env.FB_APP_SECRET) passport.use(
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
-        // UWAGA: bez permission email -> email często będzie null
-        const email = normalizeEmail(profile.emails?.[0]?.value) || null;
+        const email = profile.emails?.[0]?.value || null;
         const firstName = profile.name?.givenName || null;
         const lastName = profile.name?.familyName || null;
 
-        const user = await findOrCreateOAuthUser({
+        const user = await findOrCreateOAuthUser(pool, {
           provider: "facebook",
           providerId: profile.id,
           email,
@@ -103,7 +51,7 @@ if (process.env.FB_APP_ID && process.env.FB_APP_SECRET) passport.use(
   )
 );
 
-// ✅ GOOGLE (tu email działa normalnie)
+// Google email verification is checked before creating a new identity.
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) passport.use(
   new GoogleStrategy(
     {
@@ -113,12 +61,13 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) passport.u
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
-        const email = normalizeEmail(profile.emails?.[0]?.value) || null;
+        const email = profile.emails?.[0]?.value || null;
         const firstName = profile.name?.givenName || null;
         const lastName = profile.name?.familyName || null;
 
-        const user = await findOrCreateOAuthUser({
+        const user = await findOrCreateOAuthUser(pool, {
           provider: "google",
+          emailVerified: profile.emails?.[0]?.verified === true || profile._json?.email_verified === true,
           providerId: profile.id,
           email,
           firstName,

@@ -5,19 +5,11 @@ const passport = require("passport");
 const mergeGuestCart = require("../services/mergeGuestCart");
 const { guestState, regenerateSession, saveSession, logout } = require("../auth/session");
 
+const { beginOAuth, consumeOAuth } = require("../auth/oauthState");
 const { safeReturnTo } = require("../auth/returnTo");
 const { normalizeEmail, validateRegistration } = require("../validation/auth");
 const router = express.Router();
-const appOrigin = process.env.APP_ORIGIN || process.env.CORS_ORIGIN || "http://localhost:5173";
-function requireProvider(provider) {
-  return (_req, res, next) => {
-    const available = provider === "google"
-      ? process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      : process.env.FB_APP_ID && process.env.FB_APP_SECRET;
-    if (!available) return res.status(503).json({ error: "This sign-in provider is not configured." });
-    next();
-  };
-}
+const appOrigin = new URL(process.env.APP_ORIGIN || process.env.CORS_ORIGIN || "http://localhost:5173").origin;
 
 function toPublicUser(row) {
   return {
@@ -126,55 +118,56 @@ router.get("/me", async (req, res) => {
   }
 });
 
-function rememberReturnTo(req, _res, next) {
-  req.session.returnTo = safeReturnTo(req.query.returnTo, appOrigin);
-  req.session.save((error) => error ? next(error) : next());
-}
-function captureGuestState(req, _res, next) {
-  req.guestState = { ...guestState(req.session), cartId: req.session.cartId, returnTo: req.session.returnTo };
-  next();
-}
-
-async function finishOAuth(req, res, next) {
-  try {
-    Object.assign(req.session, req.guestState);
-    const userId = req.user.id;
-    await mergeGuestCart(pool, userId, req.session.cartId);
-    delete req.session.cartId;
-    req.session.userId = userId;
-    const returnTo = safeReturnTo(req.session.returnTo, appOrigin);
-    delete req.session.returnTo;
-    await saveSession(req);
-    res.redirect(`${appOrigin}${returnTo}`);
-  } catch (err) {
-    next(err);
-  }
+function oauthFailure(res, provider, reason, returnTo = "/") {
+  const target = new URL("/login", appOrigin);
+  target.searchParams.set("error", provider);
+  target.searchParams.set("reason", reason);
+  target.searchParams.set("returnTo", returnTo);
+  return res.redirect(target.href);
 }
 
-// ----- OAUTH FACEBOOK
-router.get("/facebook", requireProvider("facebook"), rememberReturnTo, passport.authenticate("facebook"));
+function providerConfigured(provider) {
+  return provider === "google"
+    ? process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    : process.env.FB_APP_ID && process.env.FB_APP_SECRET;
+}
 
-router.get(
-  "/facebook/callback",
-  requireProvider("facebook"),
-  captureGuestState,
-  passport.authenticate("facebook", {
-    failureRedirect: `${appOrigin}/login?error=facebook`,
-  }),
-  finishOAuth
-);
+for (const provider of ["google", "facebook"]) {
+  router.get(`/${provider}`, async (req, res, next) => {
+    if (!providerConfigured(provider)) return oauthFailure(res, provider, "unavailable", safeReturnTo(req.query.returnTo, appOrigin));
+    try {
+      const state = beginOAuth(req.session, provider, req.query.returnTo, appOrigin);
+      // Persist before leaving the site; a callback must use this exact session.
+      await saveSession(req);
+      passport.authenticate(provider, { state,
+        ...(provider === "google" ? { scope: ["profile", "email"] } : {}) })(req, res, next);
+    } catch (error) { next(error); }
+  });
 
-// ----- OAUTH GOOGLE
-router.get("/google", requireProvider("google"), rememberReturnTo, passport.authenticate("google", { scope: ["profile", "email"] }));
+  router.get(`/${provider}/callback`, async (req, res, next) => {
+    try {
+      // Validate and consume BEFORE Passport handles codes or provider errors.
+      const attempt = consumeOAuth(req.session, provider, req.query.state, appOrigin);
+      await saveSession(req);
+      if (!attempt) return oauthFailure(res, provider, "session");
+      if (!providerConfigured(provider)) return oauthFailure(res, provider, "unavailable", attempt.returnTo);
+      if (req.query.error) return oauthFailure(res, provider,
+        req.query.error === "access_denied" ? "cancelled" : "failed", attempt.returnTo);
+      if (typeof req.query.code !== "string" || !req.query.code) return oauthFailure(res, provider, "failed", attempt.returnTo);
 
-router.get(
-  "/google/callback",
-  requireProvider("google"),
-  captureGuestState,
-  passport.authenticate("google", {
-    failureRedirect: `${appOrigin}/login?error=google`,
-  }),
-  finishOAuth
-);
+      // Use the same explicit session rotation/cart merge as email login.
+      // State is validated above, independently of Passport's optional store.
+      passport.authenticate(provider, { session: false }, (error, user) => {
+        if (error || !user) {
+          const reason = ["account_conflict", "unverified_email"].includes(error?.oauthReason)
+            ? error.oauthReason : "failed";
+          return oauthFailure(res, provider, reason, attempt.returnTo);
+        }
+        finishLogin(req, user.id).then(() => res.redirect(`${appOrigin}${attempt.returnTo}`))
+          .catch(next);
+      })(req, res, next);
+    } catch (error) { next(error); }
+  });
+}
 
 module.exports = router;
