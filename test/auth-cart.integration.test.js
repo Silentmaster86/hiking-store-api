@@ -378,6 +378,13 @@ test("HTTP store flows on migrated PostgreSQL", {
     assert.equal((await pool.query("SELECT count(*) FROM users WHERE oauth_provider='facebook' AND oauth_id='concurrent-fb-id'")).rows[0].count, "1");
   });
 
+  await t.test("checkout refuses an oversized legacy cart until the user reviews its correction", async () => {
+    const browser = await guestWithItem(), cart = await browser.request("/cart"), before = await countOrders();
+    await pool.query("UPDATE cart_items SET quantity=198 WHERE cart_id=$1", [cart.cartId]);
+    const rejected = await browser.request("/checkout", "POST", payload, 422, attempt());
+    assert.equal(rejected.code, "CART_QUANTITY_LIMIT"); assert.equal(await countOrders(), before);
+    const corrected = await browser.request("/cart"); assert.equal(corrected.items[0].quantity, 99); assert.ok(corrected.notice);
+  });
   await t.test("product detail endpoint handles missing IDs and preserves authored details", async () => {
     const detail = await agent().request("/products/1");
     assert.equal(detail.id, 1); assert.deepEqual(detail.specifications, {});
