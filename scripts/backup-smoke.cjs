@@ -41,8 +41,20 @@ async function main() {
     console.log("PASS backup/restore: PostgreSQL dump restored catalogue and historical order into a new database");
   } finally {
     await Promise.all(pools.map(pool => pool.end()));
-    for (const name of created.reverse()) await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
-    await admin.end(); await rm(directory, { recursive: true, force: true });
+    try {
+      for (const name of created.reverse()) {
+        // Pool.end() can resolve before PostgreSQL observes the final socket close.
+        // Wait for the server to release our connections instead of terminating them.
+        const deadline = Date.now() + 5000;
+        while (Number((await admin.query("SELECT count(*) FROM pg_stat_activity WHERE datname=$1", [name])).rows[0].count) > 0) {
+          if (Date.now() >= deadline) throw new Error("Test database connections did not close before cleanup");
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        await admin.query(`DROP DATABASE ${name}`);
+      }
+    } finally {
+      await admin.end(); await rm(directory, { recursive: true, force: true });
+    }
   }
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });
