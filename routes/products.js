@@ -7,7 +7,7 @@ const router = express.Router();
 router.get("/", async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, description, price_cents, image_url, category_slug
+      `SELECT id, name, description, price_cents, image_url, category_slug, details, specifications
        FROM products
        ORDER BY id DESC`
     );
@@ -21,11 +21,11 @@ router.get("/", async (_req, res) => {
 // GET /products/:id
 router.get("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+  if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid id" });
 
   try {
     const result = await pool.query(
-      `SELECT id, name, description, price_cents, image_url, category_slug
+      `SELECT id, name, description, price_cents, image_url, category_slug, details, specifications
        FROM products
        WHERE id = $1`,
       [id]

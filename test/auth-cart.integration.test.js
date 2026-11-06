@@ -108,7 +108,7 @@ test("HTTP store flows on migrated PostgreSQL", {
   });
   await t.test("migration can be applied twice without losing products", async () => {
     await migrate(pool);
-    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "4");
+    assert.equal((await pool.query("SELECT count(*) FROM schema_migrations")).rows[0].count, "5");
     assert.equal((await pool.query("SELECT count(*) FROM products")).rows[0].count, "1");
   });
   await t.test("account cart survives repeated logout/login without duplication", async () => {
@@ -376,6 +376,15 @@ test("HTTP store flows on migrated PostgreSQL", {
     assert.equal((await pool.query("SELECT count(*) FROM users WHERE oauth_provider='facebook' AND oauth_id='concurrent-fb-id'")).rows[0].count, "1");
   });
 
+  await t.test("product detail endpoint handles missing IDs and preserves authored details", async () => {
+    const detail = await agent().request("/products/1");
+    assert.equal(detail.id, 1); assert.deepEqual(detail.specifications, {});
+    await agent().request("/products/9999999", "GET", undefined, 404);
+    await agent().request("/products/invalid", "GET", undefined, 400);
+    await pool.query("UPDATE products SET details='Authored details', specifications='{\"Custom\":\"Kept\"}' WHERE id=1");
+    await migrate(pool);
+    assert.equal((await agent().request("/products/1")).details, "Authored details");
+  });
   await t.test("additive migration preserves orders from the old schema", async () => {
     const legacySchema = `legacy_${randomUUID().replaceAll("-", "")}`;
     await admin.query(`CREATE SCHEMA ${legacySchema}`);

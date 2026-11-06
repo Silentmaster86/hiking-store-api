@@ -3,3 +3,7 @@ node_modules
 .DS_Store.env
 .env.*
 .DS_Store
+# Database backups and local reports
+*.dump
+*.backup
+artifacts/
