@@ -43,15 +43,18 @@ or monitoring service. Keep logs free of passwords, tokens and delivery details.
 Verify secure cookies and the OAuth host/callback configuration in OAUTH.md.
 REQUEST-SECURITY.md describes the client-first header rollout and proxy-rate limits.
 
-## Remaining main rollout
+## Release status and later changes
 
-Merge and deploy client PR #8 first, then API PR #8. Both target main directly.
-They bring the previously reviewed security/catalogue/release work from the
-intermediate branches into the production branch. A merged PR whose base was a
-working branch did not deploy that work to main. Do not re-merge the closed PRs
-or retarget anything to an intermediate branch.
+The direct-to-main PR #8 rollout in both repositories is complete. API PR #15 and
+client PR #25 are merged. The client's [audit status](https://github.com/Silentmaster86/hiking-store-client/blob/main/AUDIT-STATUS.md)
+records the 7 November main checks, observed production routing and owner reports.
 
-The client must be deployed first because API writes require the new request
-header. Review Checks and verify the target says main before merging.
-Production environment values override source defaults. The client's
-DEPLOYMENT-SETTINGS.md describes the separate hosting/OAuth cookie-host cutover.
+New pull requests target main. When changing a request contract, deploy a
+compatible client before enforcing it in the API. Production environment values
+override source defaults. The client's [release checklist](https://github.com/Silentmaster86/hiking-store-client/blob/main/RELEASE-CHECKLIST.md)
+and [deployment settings](https://github.com/Silentmaster86/hiking-store-client/blob/main/DEPLOYMENT-SETTINGS.md)
+describe later releases and the matching same-origin hosting/OAuth configuration.
+
+Hosted backup schedule, retention, latest successful backup and restoration of
+an authorized hosted copy remain to verify with owner access. The scratch-database
+round-trip above verifies the scripts, not the hosted backup service.
