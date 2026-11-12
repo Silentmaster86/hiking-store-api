@@ -77,3 +77,8 @@ On 2026-11-12, minimatch GHSA-g3hv-75wg-m249 still affects development tools
 minimatch 10; npm proposes tool downgrades rather than a compatible patch.
 Do not apply `npm audit fix --force` or override the major version without
 checking tool compatibility. Track the upstream fix separately.
+
+The PostgreSQL 16 backup smoke test explicitly selects version 16 of pg_dump
+and pg_restore. Newer runner defaults can emit settings that PostgreSQL 16
+does not support (for example transaction_timeout), breaking restoration.
+Use backup tools matching the restore target major version.
