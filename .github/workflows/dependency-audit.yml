@@ -1,0 +1,38 @@
+name: Dependency audit
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '15 7 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  production-audit:
+    name: Production dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit
+      - name: Audit all dependencies (review report)
+        continue-on-error: true
+        run: npm audit --json > npm-audit-full.json
+      - name: Block high and critical production advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Save full audit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-audit
+          path: npm-audit-full.json
+          if-no-files-found: warn
+          retention-days: 14
