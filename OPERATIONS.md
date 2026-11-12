@@ -58,3 +58,22 @@ describe later releases and the matching same-origin hosting/OAuth configuration
 Hosted backup schedule, retention, latest successful backup and restoration of
 an authorized hosted copy remain to verify with owner access. The scratch-database
 round-trip above verifies the scripts, not the hosted backup service.
+
+## Dependency security checks
+
+`Dependency audit` runs on pull requests, main pushes, weekly and on demand.
+`Production dependency audit` fails on high/critical production advisories or
+an audit service error (`npm audit --omit=dev --audit-level=high`). The full
+`npm audit --json` report is retained as the `dependency-audit` artifact for
+14 days; review moderate/low and development advisories separately.
+
+Before a release, run `npm ci`, the production audit and the full audit.
+Require `Production dependency audit` in the main branch protection/ruleset;
+adding the workflow alone does not prevent merging. Recheck weekly reports
+and Dependabot updates, and rerun functional tests after dependency changes.
+
+On 2026-11-12, minimatch GHSA-g3hv-75wg-m249 still affects development tools
+(nodemon in API; ESLint in client). The compatible dependency ranges retain
+minimatch 10; npm proposes tool downgrades rather than a compatible patch.
+Do not apply `npm audit fix --force` or override the major version without
+checking tool compatibility. Track the upstream fix separately.
