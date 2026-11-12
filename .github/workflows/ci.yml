@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -42,3 +42,4 @@ jobs:
           pg_dump --version | grep -E 'PostgreSQL\) 16\.'
           pg_restore --version | grep -E 'PostgreSQL\) 16\.'
       - run: npm run test:backup
+
